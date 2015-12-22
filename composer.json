@@ -1,0 +1,37 @@
+{
+    "name": "icicleio/websocket",
+    "description": "Asynchronous WebSocket component for Icicle.",
+    "keywords": [
+        "websocket",
+        "asynchronous",
+        "async"
+    ],
+    "homepage": "http://icicle.io",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Aaron Piotrowski",
+            "email": "aaron@icicle.io"
+        }
+    ],
+    "require": {
+        "icicleio/icicle": "^0.9.1",
+        "icicleio/socket": "^0.5.2",
+        "icicleio/http": "v0.3.x-dev as 0.3.0",
+        "paragonie/random_compat": "^1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^4.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Icicle\\WebSocket\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Icicle\\Examples\\WebSocket\\": "examples",
+            "Icicle\\Tests\\WebSocket\\": "tests"
+        }
+    }
+}
