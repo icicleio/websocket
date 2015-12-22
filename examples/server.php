@@ -21,7 +21,7 @@ class ExampleRequestHandler implements RequestHandler
 
     public function onRequest(Request $request, Socket $socket)
     {
-        yield new $this->application;
+        yield $this->application;
     }
 
     public function onError($code, Socket $socket)

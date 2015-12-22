@@ -31,6 +31,8 @@ class Rfc6455Frame implements Frame
     const EIGHT_BYTE_LENGTH_FLAG =  0x7f;
     const TWO_BYTE_MAX_LENGTH =     0xffff;
 
+    const MASK_LENGTH =         4;
+
     /**
      * Integer value corresponding to one of the type constants.
      *
@@ -118,7 +120,7 @@ class Rfc6455Frame implements Frame
 
         if ($mask) {
             for ($i = 0; $i < $size; ++$i) {
-                $buffer[$i] = chr(ord($buffer[$i]) ^ $mask[$i & 0x3]); // ($i % 4) + 1
+                $buffer[$i] = chr(ord($buffer[$i]) ^ $mask[$i & 0x3]); // $i % 4
             }
         }
 
@@ -170,7 +172,11 @@ class Rfc6455Frame implements Frame
      */
     public function encode()
     {
-        $byte = self::BIT_FIN | $this->opcode;
+        $byte = $this->opcode;
+
+        if ($this->final) {
+            $byte = self::BIT_FIN | $byte;
+        }
 
         $buffer = chr($byte);
 
@@ -196,13 +202,15 @@ class Rfc6455Frame implements Frame
 
         if ($this->mask) {
             $mask = $this->generateMask();
+            $position = strlen($buffer);
+            $buffer = str_pad($buffer, $position + $size + count($mask));
 
             foreach ($mask as $value) {
-                $buffer .= chr($value);
+                $buffer[$position++] = chr($value);
             }
 
             for ($i = 0; $i < $size; ++$i) {
-                $buffer .= chr(ord($this->data[$i]) ^ $mask[$i & 0x3]); // $i % 4
+                $buffer[$position++] = chr(ord($this->data[$i]) ^ $mask[$i & 0x3]); // $i % 4
             }
 
             return $buffer;
@@ -224,7 +232,7 @@ class Rfc6455Frame implements Frame
     /**
      * @return  bool
      */
-    public function masked()
+    public function isMasked()
     {
         return $this->mask;
     }
@@ -246,17 +254,17 @@ class Rfc6455Frame implements Frame
     }
 
     /**
-     * Array of 4 pseudo-random bytes to use for masking data.
+     * Array of pseudo-random bytes to use for masking data.
      *
-     * @return  array
+     * @return  int[]
      */
     private function generateMask()
     {
-        $bytes = random_bytes(4);
+        $bytes = random_bytes(self::MASK_LENGTH);
 
         $mask = [];
 
-        for ($i = 0; $i < 4; ++$i) {
+        for ($i = 0; $i < self::MASK_LENGTH; ++$i) {
             $mask[$i] = ord($bytes[$i]);
         }
 

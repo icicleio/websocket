@@ -3,6 +3,7 @@ namespace Icicle\WebSocket\Protocol;
 
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\BasicResponse;
+use Icicle\Http\Message\Response;
 use Icicle\Http\Message\Uri;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
@@ -30,7 +31,7 @@ class Rfc6455Protocol implements Protocol
     {
         if (!$request->hasHeader('Sec-WebSocket-Key')) {
             $sink = new MemorySink('No WebSocket key header provided.');
-            yield new BasicResponse(400, [
+            yield new BasicResponse(Response::BAD_REQUEST, [
                 'Connection' => 'close',
                 'Content-Length' => $sink->getLength(),
             ], $sink);

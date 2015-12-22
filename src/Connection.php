@@ -93,7 +93,7 @@ class Connection
      */
     public function isOpen()
     {
-        return $this->socket->isOpen() && $this->socket->isWritable();
+        return $this->socket->isWritable();
     }
 
     /**
@@ -113,7 +113,7 @@ class Connection
             /** @var \Icicle\WebSocket\Protocol\Frame $frame */
             $frame = (yield $this->socketProtocol->readFrame($this->socket, $timeout));
 
-            if ($this->mask === $frame->masked()) {
+            if ($this->mask === $frame->isMasked()) {
                 throw new ProtocolException(sprintf('Received %s frame.', $this->mask ? 'masked' : 'unmasked'));
             }
 

@@ -3,6 +3,7 @@ namespace Icicle\WebSocket\Protocol;
 
 use Icicle\Http\Message\BasicResponse;
 use Icicle\Http\Message\Request;
+use Icicle\Http\Message\Response;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
@@ -30,9 +31,31 @@ class DefaultProtocolMatcher implements ProtocolMatcher
      */
     public function createResponse(Application $application, Request $request, Socket $socket)
     {
+        if (strtolower($request->getHeaderLine('Connection')) !== 'upgrade'
+            || strtolower($request->getHeaderLine('Upgrade')) !== 'websocket'
+        ) {
+            $sink = new MemorySink('Must upgrade to WebSocket connection for requested resource.');
+            yield new BasicResponse(Response::UPGRADE_REQUIRED, [
+                'Connection' => 'close',
+                'Upgrade' => 'websocket',
+                'Content-Length' => $sink->getLength(),
+                'Content-Type' => 'text/plain',
+            ], $sink);
+            return;
+        }
+
+        if (!$application->allowOrigin($request->getHeaderLine('Origin'))) {
+            $sink = new MemorySink('Origin forbidden.');
+            yield new BasicResponse(Response::FORBIDDEN, [
+                'Connection' => 'close',
+                'Content-Length' => $sink->getLength(),
+            ], $sink);
+            return;
+        }
+
         if (!$request->hasHeader('Sec-WebSocket-Version')) {
             $sink = new MemorySink('No WebSocket version header provided.');
-            yield new BasicResponse(400, [
+            yield new BasicResponse(Response::BAD_REQUEST, [
                 'Connection' => 'close',
                 'Content-Length' => $sink->getLength(),
                 'Upgrade' => 'websocket',
@@ -45,7 +68,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
 
         if (!in_array($this->protocol->getVersionNumber(), $versions)) {
             $sink = new MemorySink('Unsupported protocol version.');
-            yield new BasicResponse(426, [
+            yield new BasicResponse(Response::UPGRADE_REQUIRED, [
                 'Connection' => 'close',
                 'Content-Length' => $sink->getLength(),
                 'Upgrade' => 'websocket',

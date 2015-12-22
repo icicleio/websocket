@@ -50,27 +50,6 @@ class WebSocketRequestHandler implements RequestHandler
             return;
         }
 
-        if (strtolower($request->getHeaderLine('Connection')) !== 'upgrade'
-            || strtolower($request->getHeaderLine('Upgrade')) !== 'websocket'
-        ) {
-            $sink = new MemorySink('Must upgrade to WebSocket connection for requested resource.');
-            yield new BasicResponse(426, [
-                'Connection' => 'close',
-                'Upgrade' => 'websocket',
-                'Content-Length' => $sink->getLength(),
-            ], $sink);
-            return;
-        }
-
-        if (!$application->allowOrigin($request->getHeaderLine('Origin'))) {
-            $sink = new MemorySink('Origin forbidden.');
-            yield new BasicResponse(403, [
-                'Connection' => 'close',
-                'Content-Length' => $sink->getLength(),
-            ], $sink);
-            return;
-        }
-
         $response = (yield $this->matcher->createResponse($application, $request, $socket));
 
         yield $application->createResponse($response);

@@ -28,7 +28,7 @@ interface Frame
     /**
      * @return bool True if the frame message was masked, false if not.
      */
-    public function masked();
+    public function isMasked();
 
     /**
      * @return string Frame encoded as a string.
