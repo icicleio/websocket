@@ -4,17 +4,20 @@ namespace Icicle\WebSocket\Protocol;
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\BasicResponse;
 use Icicle\Http\Message\Response;
-use Icicle\Http\Message\Uri;
+use Icicle\Observable\Emitter;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Connection;
+use Icicle\WebSocket\Exception\ProtocolException;
+use Icicle\WebSocket\Message;
 use Icicle\WebSocket\Message\WebSocketResponse;
 
 class Rfc6455Protocol implements Protocol
 {
     const VERSION = '13';
     const KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+    const DEFAULT_KEY_LENGTH = 10;
 
     /**
      * {@inheritdoc}
@@ -41,7 +44,7 @@ class Rfc6455Protocol implements Protocol
         $headers = [
             'Connection' => 'upgrade',
             'Upgrade' => 'websocket',
-            'Sec-WebSocket-Accept' => $this->createKey($request->getHeaderLine('Sec-WebSocket-Key')),
+            'Sec-WebSocket-Accept' => $this->responseKey($request->getHeaderLine('Sec-WebSocket-Key')),
         ];
 
         $protocol = $application->selectProtocol(
@@ -68,11 +71,20 @@ class Rfc6455Protocol implements Protocol
     }
 
     /**
-     * {@inheritdoc}
+     * @param \Icicle\Http\Message\Request $request
+     * @param \Icicle\Http\Message\Response $response
+     *
+     * @return bool
      */
-    public function createRequest(Application $application, Socket $socket, Uri $uri, $protocol)
+    public function validateResponse(Request $request, Response $response)
     {
-        $connection = new Connection($socket, $this, $uri, $protocol, [], true);
+        $key = $request->getHeaderLine('Sec-WebSocket-Key');
+
+        if (!$response->hasHeader('Sec-WebSocket-Accept')) {
+            return false;
+        }
+
+        return $this->responseKey($key) === $response->getHeaderLine('Sec-WebSocket-Accept');
     }
 
     /**
@@ -80,32 +92,85 @@ class Rfc6455Protocol implements Protocol
      *
      * @return string
      */
-    private function createKey($key)
+    private function responseKey($key)
     {
         return base64_encode(sha1($key . self::KEY, true));
     }
 
     /**
-     * {@inheritdoc}
+     * @param int $length Number of random bytes to generate for the encoded key.
+     *
+     * @return string
      */
-    public function createFrame($type, $data = '', $mask, $final = true)
+    public function generateKey($length = self::DEFAULT_KEY_LENGTH)
     {
-        return new Rfc6455Frame($type, $data, $mask, $final);
+        return base64_encode(random_bytes($length));
     }
 
     /**
      * {@inheritdoc}
      */
-    public function readFrame(Socket $socket, $timeout = 0)
+    public function read(Socket $socket, $mask, $timeout = 0)
     {
-        return Rfc6455Frame::read($socket, $timeout);
+        return new Emitter(function (callable $emit) use ($socket, $mask, $timeout) {
+            try {
+                while ($socket->isReadable()) {
+                    /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame $frame */
+                    $frame = (yield Rfc6455Frame::read($socket));
+
+                    switch ($type = $frame->getType()) {
+                        case Frame::CLOSE: // Close connection.
+                            if ($socket->isWritable()) {
+                                $frame = new Rfc6455Frame(Frame::CLOSE, '', $mask);
+                                yield $socket->end($frame->encode(), $timeout);
+                            }
+                            yield $frame->getData();
+                            return;
+
+                        case Frame::PING: // Respond with pong frame.
+                            $frame = new Rfc6455Frame(Frame::PONG, $frame->getData(), $mask);
+                            yield $socket->write($frame->encode(), $timeout);
+                            continue;
+
+                        case Frame::PONG: // Cancel timeout set by sending ping frame.
+                            // @todo Handle pong received after sending ping.
+                            continue;
+
+                        case Frame::TEXT:
+                        case Frame::BINARY:
+                            // @todo Collect multiple frames into messages.
+                            yield $emit(new Message($frame->getData(), $type === Frame::BINARY));
+                            break;
+
+                        default:
+                            throw new ProtocolException('Received unrecognized frame type.');
+                    }
+                }
+            } finally {
+                $socket->close();
+            }
+
+            yield '';
+        });
     }
 
     /**
      * {@inheritdoc}
      */
-    public function sendFrame(Frame $frame, Socket $socket, $timeout = 0)
+    public function send(Message $message, Socket $socket, $mask, $timeout = 0)
     {
-        return $socket->write($frame->encode(), $timeout);
+        $frame = new Rfc6455Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $mask);
+
+        yield $socket->write($frame->encode(), $timeout);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function close(Socket $socket, $mask, $data = '', $timeout = 0)
+    {
+        $frame = new Rfc6455Frame(Frame::CLOSE, $data, $mask);
+
+        yield $socket->end($frame->encode(), $timeout);
     }
 }

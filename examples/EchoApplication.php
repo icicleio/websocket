@@ -32,8 +32,12 @@ class EchoApplication implements Application
     {
         yield $connection->send(new Message('Connected to echo WebSocket server powered by Icicle.'));
 
-        /** @var \Icicle\WebSocket\Message $message */
-        while ($connection->isOpen() && $message = (yield $connection->read())) {
+        $iterator = $connection->read()->getIterator();
+
+        while (yield $iterator->isValid()) {
+            /** @var \Icicle\WebSocket\Message $message */
+            $message = $iterator->getCurrent();
+
             if ($message->getData() === 'close') {
                 yield $connection->close();
             } else {

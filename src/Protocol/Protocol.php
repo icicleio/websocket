@@ -2,9 +2,9 @@
 namespace Icicle\WebSocket\Protocol;
 
 use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Uri;
 use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
+use Icicle\WebSocket\Message;
 
 interface Protocol
 {
@@ -27,49 +27,39 @@ interface Protocol
     public function createResponse(Application $application, Request $request, Socket $socket);
 
     /**
-     * @param \Icicle\WebSocket\Application $application
      * @param \Icicle\Socket\Socket $socket
-     * @param \Icicle\Http\Message\Uri $uri
-     * @param string $protocol
-     *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Request
-     */
-    public function createRequest(Application $application, Socket $socket, Uri $uri, $protocol);
-
-    /**
-     * @param int $type
-     * @param string $data
      * @param bool $mask
-     * @param bool $final
+     * @param float|int $timeout
      *
-     * @return \Icicle\WebSocket\Protocol\Frame
+     * @return \Icicle\Observable\Observable
      */
-    public function createFrame($type, $data = '', $mask, $final = true);
+    public function read(Socket $socket, $mask, $timeout = 0);
+
+    /**
+     * @coroutine
+     *
+     * @param \Icicle\WebSocket\Message $message
+     * @param \Icicle\Socket\Socket $socket
+     * @param bool $mask
+     * @param float|int $timeout
+     *
+     * @return \Generator
+     *
+     * @resolve int
+     */
+    public function send(Message $message, Socket $socket, $mask, $timeout = 0);
 
     /**
      * @coroutine
      *
      * @param \Icicle\Socket\Socket $socket
+     * @param bool $mask
+     * @param string $data
      * @param float|int $timeout
      *
      * @return \Generator
      *
-     * @resolve \Icicle\WebSocket\Protocol\Frame
+     * @resolve string
      */
-    public function readFrame(Socket $socket, $timeout = 0);
-
-    /**
-     * @coroutine
-     *
-     * @param \Icicle\WebSocket\Protocol\Frame $frame
-     * @param \Icicle\Socket\Socket $socket
-     * @param float|int $timeout
-     *
-     * @return \Generator
-     *
-     * @resolve int Number of bytes sent.
-     */
-    public function sendFrame(Frame $frame, Socket $socket, $timeout = 0);
+    public function close(Socket $socket, $mask, $data = '', $timeout = 0);
 }

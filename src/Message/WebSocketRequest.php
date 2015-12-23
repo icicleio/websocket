@@ -3,45 +3,16 @@ namespace Icicle\WebSocket\Message;
 
 use Icicle\Http\Message\BasicRequest;
 use Icicle\Http\Message\Uri;
-use Icicle\WebSocket\Application;
 
 class WebSocketRequest extends BasicRequest
 {
     /**
-     * @var \Icicle\WebSocket\Application
-     */
-    private $application;
-
-    /**
-     * @var \Icicle\WebSocket\Connection
-     */
-    private $connection;
-
-    /**
-     * @param \Icicle\WebSocket\Application $application
-     * @param \Icicle\WebSocket\Connection $connection
+     * @param \Icicle\Http\Message\Uri $uri
      * @param string[][] $headers
+     * @param string|null $target
      */
-    public function __construct(Application $application, Uri $uri, array $headers)
+    public function __construct(Uri $uri, array $headers, $target = null)
     {
-        parent::__construct('GET', $uri, $headers);
-
-        $this->application = $application;
-    }
-
-    /**
-     * @return \Icicle\WebSocket\Application
-     */
-    public function getApplication()
-    {
-        return $this->application;
-    }
-
-    /**
-     * @return \Icicle\WebSocket\Connection
-     */
-    public function getConnection()
-    {
-        return $this->connection;
+        parent::__construct('GET', $uri, $headers, null, $target, '1.1');
     }
 }

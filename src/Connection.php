@@ -1,11 +1,8 @@
 <?php
 namespace Icicle\WebSocket;
 
-use Icicle\Coroutine\Coroutine;
 use Icicle\Http\Message\Uri;
 use Icicle\Socket\Socket;
-use Icicle\WebSocket\Exception\ProtocolException;
-use Icicle\WebSocket\Protocol\Frame;
 use Icicle\WebSocket\Protocol\Protocol;
 
 class Connection
@@ -41,6 +38,11 @@ class Connection
     private $mask;
 
     /**
+     * @var \Icicle\Observable\Observable
+     */
+    private $observable;
+
+    /**
      * @param \Icicle\Socket\Socket $socket
      * @param \Icicle\WebSocket\Protocol\Protocol $socketProtocol
      * @param \Icicle\Http\Message\Uri $uri
@@ -62,6 +64,8 @@ class Connection
         $this->connectionProtocol = (string) $connectionProtocol;
         $this->extensions = $extensions;
         $this->mask = (bool) $mask;
+
+        $this->observable = $this->socketProtocol->read($this->socket, $this->mask);
     }
 
     /**
@@ -97,53 +101,16 @@ class Connection
     }
 
     /**
-     * @coroutine
-     *
-     * @param float|int $timeout
-     *
-     * @return \Generator
-     *
-     * @resolve \Icicle\WebSocket\Message|null
-     *
-     * @throws \Icicle\WebSocket\Exception\ProtocolException
+     * @return \Icicle\Observable\Observable
      */
-    public function read($timeout = 0)
+    public function read()
     {
-        while ($this->socket->isOpen()) {
-            /** @var \Icicle\WebSocket\Protocol\Frame $frame */
-            $frame = (yield $this->socketProtocol->readFrame($this->socket, $timeout));
-
-            if ($this->mask === $frame->isMasked()) {
-                throw new ProtocolException(sprintf('Received %s frame.', $this->mask ? 'masked' : 'unmasked'));
-            }
-
-            switch ($type = $frame->getType()) {
-                case Frame::CLOSE: // Close connection.
-                    // @todo Do not send close frame if close frame was already sent.
-                    $frame = $this->socketProtocol->createFrame(Frame::CLOSE, '', $this->mask);
-                    yield $this->socketProtocol->sendFrame($frame, $this->socket, $timeout);
-                    $this->socket->close();
-                    yield null; // @todo Resolve with close message.
-                    return;
-
-                case Frame::PING: // Respond with pong frame.
-                    $frame = $this->socketProtocol->createFrame(Frame::PONG, '', $this->mask);
-                    yield $this->socketProtocol->sendFrame($frame, $this->socket, $timeout);
-                    continue;
-
-                case Frame::PONG: // Cancel timeout set by sending ping frame.
-                    // @todo Handle pong received after sending ping.
-                    continue;
-
-                default: // Emit message.
-                    // @todo Collect multiple frames into messages.
-                    yield new Message($frame->getData(), $type === Frame::BINARY);
-                    return;
-            }
-        }
+        return $this->observable;
     }
 
     /**
+     * @coroutine
+     *
      * @param \Icicle\WebSocket\Message $message
      * @param float|int $timeout
      *
@@ -153,37 +120,21 @@ class Connection
      */
     public function send(Message $message, $timeout = 0)
     {
-        $frame = $this->socketProtocol->createFrame(
-            $message->isBinary() ? Frame::BINARY : Frame::TEXT,
-            $message->getData(),
-            $this->mask,
-            true
-        );
-
-        yield $this->socketProtocol->sendFrame($frame, $this->socket, $timeout);
+        return $this->socketProtocol->send($message, $this->socket, $this->mask, $timeout);
     }
 
     /**
+     * @coroutine
+     *
      * @param string $data
-     * @param int $timeout
+     * @param float|int $timeout
      *
      * @return \Generator
      *
-     * @resolve null
+     * @resolve int Number of bytes sent.
      */
     public function close($data = '', $timeout = 0)
     {
-        try {
-            if ($this->socket->isWritable()) {
-                $frame = $this->socketProtocol->createFrame(Frame::CLOSE, $data, $this->mask);
-                yield $this->socketProtocol->sendFrame($frame, $this->socket, $timeout);
-
-                /** @var \Icicle\WebSocket\Protocol\Frame $frame */
-                $frame = (yield $this->socketProtocol->readFrame($this->socket, $timeout));
-                yield $frame->getData();
-            }
-        } finally {
-            $this->socket->close();
-        }
+        return $this->socketProtocol->close($this->socket, $this->mask, $data, $timeout);
     }
 }

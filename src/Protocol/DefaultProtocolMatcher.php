@@ -4,9 +4,11 @@ namespace Icicle\WebSocket\Protocol;
 use Icicle\Http\Message\BasicResponse;
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
+use Icicle\Http\Message\Uri;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
+use Icicle\WebSocket\Message\WebSocketRequest;
 
 class DefaultProtocolMatcher implements ProtocolMatcher
 {
@@ -21,13 +23,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     }
 
     /**
-     * @param \Icicle\WebSocket\Application $application
-     * @param Request $request
-     * @param Socket $socket
-     *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Response
+     * {@inheritdoc}
      */
     public function createResponse(Application $application, Request $request, Socket $socket)
     {
@@ -78,6 +74,33 @@ class DefaultProtocolMatcher implements ProtocolMatcher
         }
 
         yield $this->protocol->createResponse($application, $request, $socket);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function createRequest(Uri $uri, array $protocols = [])
+    {
+        $headers = [
+            'Connection' => 'upgrade',
+            'Upgrade' => 'websocket',
+            'Sec-WebSocket-Version' => $this->getSupportedVersions(),
+            'Sec-WebSocket-Key' => $this->protocol->generateKey(),
+        ];
+
+        if (!empty($protocols)) {
+            $headers['Sec-WebSocket-Protocol'] = $protocols;
+        }
+
+        yield new WebSocketRequest($uri, $headers);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function validateResponse(Request $request, Response $response)
+    {
+        return $this->protocol->validateResponse($request, $response);
     }
 
     /**
