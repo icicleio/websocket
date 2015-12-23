@@ -5,7 +5,7 @@ use Icicle\Socket\Socket;
 use Icicle\Stream;
 use Icicle\WebSocket\Exception\FrameException;
 
-class Rfc6455Frame implements Frame
+class Rfc6455Transporter implements Transporter
 {
     const BIT_FIN =             0x80;
     const BIT_RSV1 =            0x40;
@@ -32,42 +32,12 @@ class Rfc6455Frame implements Frame
     const TWO_BYTE_MAX_LENGTH =     0xffff;
 
     const MASK_LENGTH =         4;
+    const CHUNK_SIZE =          0x1000;
 
     /**
-     * Integer value corresponding to one of the type constants.
-     *
-     * @var int
+     * {@inheritdoc}
      */
-    protected $opcode = self::TEXT;
-
-    /**
-     * @var string
-     */
-    protected $data;
-
-    /**
-     * @var bool
-     */
-    protected $final = true;
-
-    /**
-     * @var bool
-     */
-    protected $mask = false;
-
-    /**
-     * @coroutine
-     *
-     * @param \Icicle\Socket\Socket $socket
-     * @param float|int $timeout
-     *
-     * @return \Generator
-     *
-     * @resolve \Icicle\WebSocket\Protocol\Frame
-     *
-     * @throws \Icicle\WebSocket\Exception\FrameException
-     */
-    public static function read(Socket $socket, $timeout = 0)
+    public function read(Socket $socket, $timeout = 0)
     {
         $buffer = (yield Stream\readTo($socket, 2, $timeout));
 
@@ -133,54 +103,23 @@ class Rfc6455Frame implements Frame
             throw new FrameException('Invalid UTF-8 data received.');
         }
 
-        yield new self($opcode, $buffer, (bool) $mask, $final);
+        yield new Frame($opcode, $buffer, (bool) $mask, $final);
     }
 
     /**
-     * @param int $opcode
-     * @param string $data
-     * @param bool $mask
-     * @param bool $final
-     *
-     * @throws \Icicle\WebSocket\Exception\FrameException
+     * {@inheritdoc}
      */
-    public function __construct($opcode, $data = '', $mask = false, $final = true)
+    public function send(Frame $frame, Socket $socket, $timeout = 0)
     {
-        switch ($opcode) {
-            case self::CONTINUATION:
-            case self::TEXT:
-            case self::BINARY:
-            case self::CLOSE:
-            case self::PING:
-            case self::PONG:
-                $this->opcode = $opcode;
-                break;
+        $byte = $frame->getType();
 
-            default:
-                throw new FrameException('Invalid opcode.');
-        }
-
-        $this->data = (string) $data;
-        $this->mask = (bool) $mask;
-        $this->final = (bool) $final;
-    }
-
-    /**
-     * Returns the raw string of bytes of the encoded frame.
-     *
-     * @return  string
-     */
-    public function encode()
-    {
-        $byte = $this->opcode;
-
-        if ($this->final) {
+        if ($frame->isFinal()) {
             $byte = self::BIT_FIN | $byte;
         }
 
         $buffer = chr($byte);
 
-        $size = strlen($this->data);
+        $size = $frame->getSize();
 
         if ($size < self::TWO_BYTE_LENGTH_FLAG) {
             $length = $size;
@@ -190,7 +129,7 @@ class Rfc6455Frame implements Frame
             $length = self::EIGHT_BYTE_LENGTH_FLAG;
         }
 
-        $byte = ($this->mask ? self::MASK_FLAG_MASK : 0) | ($length & self::LENGTH_MASK);
+        $byte = ($frame->isMasked() ? self::MASK_FLAG_MASK : 0) | ($length & self::LENGTH_MASK);
 
         $buffer .= chr($byte);
 
@@ -200,65 +139,38 @@ class Rfc6455Frame implements Frame
             $buffer .= pack('NN', $size >> 32, $size);
         }
 
-        if ($this->mask) {
+        if ($frame->isMasked()) {
             $mask = $this->generateMask();
-            $position = strlen($buffer);
-            $buffer = str_pad($buffer, $position + $size + count($mask));
 
             foreach ($mask as $value) {
-                $buffer[$position++] = chr($value);
+                $buffer .= chr($value);
             }
 
-            for ($i = 0; $i < $size; ++$i) {
-                $buffer[$position++] = chr(ord($this->data[$i]) ^ $mask[$i & 0x3]); // $i % 4
+            $written = (yield $socket->write($buffer, $timeout));
+
+            $remaining = $size;
+            $position = 0;
+
+            $data = $frame->getData();
+
+            while (0 < $remaining) {
+                $buffer = str_repeat("\0", min($remaining, self::CHUNK_SIZE));
+
+                for ($i = 0; $position < $remaining && $i < self::CHUNK_SIZE; ++$i, ++$position) {
+                    $buffer[$i] = chr(ord($data[$position]) ^ $mask[$position & 0x3]); // $position % 4
+                }
+
+                $remaining -= $i;
+
+                $written += (yield $socket->write($buffer, $timeout));
             }
 
-            return $buffer;
+            yield $written;
+            return;
         }
 
-        $buffer .= $this->data;
-
-        return $buffer;
-    }
-
-    /**
-     * @return  string
-     */
-    public function getData()
-    {
-        return $this->data;
-    }
-
-    /**
-     * @return int
-     */
-    public function getSize()
-    {
-        return strlen($this->data);
-    }
-
-    /**
-     * @return  bool
-     */
-    public function isMasked()
-    {
-        return $this->mask;
-    }
-
-    /**
-     * @return  int
-     */
-    public function getType()
-    {
-        return $this->opcode;
-    }
-
-    /**
-     * @return  bool
-     */
-    public function isFinal()
-    {
-        return $this->final;
+        $written = (yield $socket->write($buffer, $timeout));
+        yield $written + (yield $socket->write($frame->getData(), $timeout));
     }
 
     /**

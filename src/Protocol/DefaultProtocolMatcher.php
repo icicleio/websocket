@@ -60,9 +60,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             return;
         }
 
-        $versions = array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Version')));
-
-        if (!in_array($this->protocol->getVersionNumber(), $versions)) {
+        if (!$this->protocol->isProtocol($request)) {
             $sink = new MemorySink('Unsupported protocol version.');
             yield new BasicResponse(Response::UPGRADE_REQUIRED, [
                 'Connection' => 'close',

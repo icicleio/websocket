@@ -16,8 +16,21 @@ use Icicle\WebSocket\Message\WebSocketResponse;
 class Rfc6455Protocol implements Protocol
 {
     const VERSION = '13';
-    const KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-    const DEFAULT_KEY_LENGTH = 10;
+    const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+    const DEFAULT_KEY_LENGTH = 12;
+
+    /**
+     * @var \Icicle\WebSocket\Protocol\Transporter
+     */
+    private $transporter;
+
+    /**
+     * @param \Icicle\WebSocket\Protocol\Transporter|null $transporter
+     */
+    public function __construct(Transporter $transporter = null)
+    {
+        $this->transporter = $transporter ?: new Rfc6455Transporter();
+    }
 
     /**
      * {@inheritdoc}
@@ -25,6 +38,16 @@ class Rfc6455Protocol implements Protocol
     public function getVersionNumber()
     {
         return self::VERSION;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isProtocol(Request $request)
+    {
+        $versions = array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Version')));
+
+        return in_array(self::VERSION, $versions);
     }
 
     /**
@@ -71,10 +94,7 @@ class Rfc6455Protocol implements Protocol
     }
 
     /**
-     * @param \Icicle\Http\Message\Request $request
-     * @param \Icicle\Http\Message\Response $response
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function validateResponse(Request $request, Response $response)
     {
@@ -94,7 +114,7 @@ class Rfc6455Protocol implements Protocol
      */
     private function responseKey($key)
     {
-        return base64_encode(sha1($key . self::KEY, true));
+        return base64_encode(sha1($key . self::GUID, true));
     }
 
     /**
@@ -113,28 +133,32 @@ class Rfc6455Protocol implements Protocol
     public function read(Socket $socket, $mask, $timeout = 0)
     {
         return new Emitter(function (callable $emit) use ($socket, $mask, $timeout) {
-            /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame[] $frames */
+            /** @var \Icicle\WebSocket\Protocol\Frame[] $frames */
             $size = 0;
             $frames = [];
 
             try {
                 while ($socket->isReadable()) {
-                    /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame $frame */
-                    $frame = (yield Rfc6455Frame::read($socket));
+                    /** @var \Icicle\WebSocket\Protocol\Frame $frame */
+                    $frame = (yield $this->transporter->read($socket, $timeout));
+
+                    if ($frame->isMasked() === $mask) {
+                        throw new ProtocolException(sprintf('Received %s frame.', $mask ? 'masked' : 'unmasked'));
+                    }
 
                     switch ($type = $frame->getType()) {
                         case Frame::CLOSE: // Close connection.
                             $data = $frame->getData();
                             if ($socket->isWritable()) {
-                                $frame = new Rfc6455Frame(Frame::CLOSE, '', $mask);
-                                yield $socket->end($frame->encode(), $timeout);
+                                $frame = new Frame(Frame::CLOSE, '', $mask);
+                                yield $this->transporter->send($frame, $socket, $timeout);
                             }
                             yield $data; // @todo Parse close status from data.
                             return;
 
                         case Frame::PING: // Respond with pong frame.
-                            $frame = new Rfc6455Frame(Frame::PONG, $frame->getData(), $mask);
-                            yield $socket->write($frame->encode(), $timeout);
+                            $frame = new Frame(Frame::PONG, $frame->getData(), $mask);
+                            yield $this->transporter->send($frame, $socket, $timeout);
                             continue;
 
                         case Frame::PONG: // Cancel timeout set by sending ping frame.
@@ -199,9 +223,9 @@ class Rfc6455Protocol implements Protocol
      */
     public function send(Message $message, Socket $socket, $mask, $timeout = 0)
     {
-        $frame = new Rfc6455Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $mask);
+        $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $mask);
 
-        yield $socket->write($frame->encode(), $timeout);
+        yield $this->transporter->send($frame, $socket, $timeout);
     }
 
     /**
@@ -209,8 +233,10 @@ class Rfc6455Protocol implements Protocol
      */
     public function close(Socket $socket, $mask, $data = '', $timeout = 0)
     {
-        $frame = new Rfc6455Frame(Frame::CLOSE, $data, $mask);
+        $frame = new Frame(Frame::CLOSE, $data, $mask);
 
-        yield $socket->end($frame->encode(), $timeout);
+        $written = (yield $this->transporter->send($frame, $socket, $timeout)) + (yield $socket->end('', $timeout));
+
+        yield $written;
     }
 }

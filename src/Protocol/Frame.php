@@ -1,7 +1,9 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
-interface Frame
+use Icicle\WebSocket\Exception\FrameException;
+
+class Frame
 {
     const CONTINUATION = 0x0;
     const TEXT =         0x1;
@@ -11,32 +13,93 @@ interface Frame
     const PONG =         0xa;
 
     /**
-     * @return string
+     * Integer value corresponding to one of the type constants.
+     *
+     * @var int
      */
-    public function getData();
+    private $opcode = self::TEXT;
+
+    /**
+     * @var string
+     */
+    private $data;
+
+    /**
+     * @var bool
+     */
+    private $final = true;
+
+    /**
+     * @var bool
+     */
+    private $mask = false;
+
+    /**
+     * @param int $opcode
+     * @param string $data
+     * @param bool $mask
+     * @param bool $final
+     *
+     * @throws \Icicle\WebSocket\Exception\FrameException
+     */
+    public function __construct($opcode, $data = '', $mask = false, $final = true)
+    {
+        switch ($opcode) {
+            case self::CONTINUATION:
+            case self::TEXT:
+            case self::BINARY:
+            case self::CLOSE:
+            case self::PING:
+            case self::PONG:
+                $this->opcode = $opcode;
+                break;
+
+            default:
+                throw new FrameException('Invalid opcode.');
+        }
+
+        $this->data = (string) $data;
+        $this->mask = (bool) $mask;
+        $this->final = (bool) $final;
+    }
+
+    /**
+     * @return  string
+     */
+    public function getData()
+    {
+        return $this->data;
+    }
 
     /**
      * @return int
      */
-    public function getSize();
+    public function getSize()
+    {
+        return strlen($this->data);
+    }
 
     /**
-     * @return int Returns an integer corresponding to the frame type constants.
+     * @return  bool
      */
-    public function getType();
+    public function isMasked()
+    {
+        return $this->mask;
+    }
 
     /**
-     * @return bool True if the frame is final, false if not.
+     * @return  int
      */
-    public function isFinal();
+    public function getType()
+    {
+        return $this->opcode;
+    }
 
     /**
-     * @return bool True if the frame message was masked, false if not.
+     * @return  bool
      */
-    public function isMasked();
-
-    /**
-     * @return string Frame encoded as a string.
-     */
-    public function encode();
+    public function isFinal()
+    {
+        return $this->final;
+    }
 }
