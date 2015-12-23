@@ -2,10 +2,8 @@
 namespace Icicle\WebSocket\Server\Internal;
 
 use Icicle\Http\Message\Request;
-use Icicle\Http\Message\BasicResponse;
 use Icicle\Http\Server\RequestHandler;
 use Icicle\Socket\Socket;
-use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Protocol\ProtocolMatcher;
 

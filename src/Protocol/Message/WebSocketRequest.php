@@ -1,5 +1,5 @@
 <?php
-namespace Icicle\WebSocket\Message;
+namespace Icicle\WebSocket\Protocol\Message;
 
 use Icicle\Http\Message\BasicRequest;
 use Icicle\Http\Message\Uri;

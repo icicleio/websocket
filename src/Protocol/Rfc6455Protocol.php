@@ -11,7 +11,7 @@ use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
-use Icicle\WebSocket\Message\WebSocketResponse;
+use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
 
 class Rfc6455Protocol implements Protocol
 {

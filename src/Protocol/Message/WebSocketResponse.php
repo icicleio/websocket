@@ -1,5 +1,5 @@
 <?php
-namespace Icicle\WebSocket\Message;
+namespace Icicle\WebSocket\Protocol\Message;
 
 use Icicle\Http\Message\BasicResponse;
 use Icicle\WebSocket\Application;

@@ -8,7 +8,7 @@ use Icicle\Http\Message\Uri;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Message\WebSocketRequest;
+use Icicle\WebSocket\Protocol\Message\WebSocketRequest;
 
 class DefaultProtocolMatcher implements ProtocolMatcher
 {
