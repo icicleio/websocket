@@ -230,6 +230,14 @@ class Rfc6455Frame implements Frame
     }
 
     /**
+     * @return int
+     */
+    public function getSize()
+    {
+        return strlen($this->data);
+    }
+
+    /**
      * @return  bool
      */
     public function isMasked()

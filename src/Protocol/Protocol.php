@@ -59,7 +59,7 @@ interface Protocol
      *
      * @return \Generator
      *
-     * @resolve string
+     * @resolve int
      */
     public function close(Socket $socket, $mask, $data = '', $timeout = 0);
 }

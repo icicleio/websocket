@@ -113,6 +113,10 @@ class Rfc6455Protocol implements Protocol
     public function read(Socket $socket, $mask, $timeout = 0)
     {
         return new Emitter(function (callable $emit) use ($socket, $mask, $timeout) {
+            /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame[] $frames */
+            $size = 0;
+            $frames = [];
+
             try {
                 while ($socket->isReadable()) {
                     /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame $frame */
@@ -120,11 +124,12 @@ class Rfc6455Protocol implements Protocol
 
                     switch ($type = $frame->getType()) {
                         case Frame::CLOSE: // Close connection.
+                            $data = $frame->getData();
                             if ($socket->isWritable()) {
                                 $frame = new Rfc6455Frame(Frame::CLOSE, '', $mask);
                                 yield $socket->end($frame->encode(), $timeout);
                             }
-                            yield $frame->getData();
+                            yield $data; // @todo Parse close status from data.
                             return;
 
                         case Frame::PING: // Respond with pong frame.
@@ -136,11 +141,46 @@ class Rfc6455Protocol implements Protocol
                             // @todo Handle pong received after sending ping.
                             continue;
 
+                        case Frame::CONTINUATION:
+                            $count = count($frames);
+
+                            if (0 === $count) {
+                                throw new ProtocolException('Received orphan continuation frame.');
+                            }
+
+                            // @todo Enforce max $size and frame $count.
+
+                            $size += $frame->getSize();
+                            $frames[] = $frame;
+
+                            if (!$frame->isFinal()) {
+                                continue;
+                            }
+
+                            $data = $frame->getData();
+
+                            while (!empty($frames)) {
+                                $frame = array_pop($frames);
+                                $data = $frame->getData() . $data;
+                            }
+
+                            yield $emit(new Message($data, $frame->getType() === Frame::BINARY));
+                            continue;
+
                         case Frame::TEXT:
                         case Frame::BINARY:
-                            // @todo Collect multiple frames into messages.
+                            if (!empty($frames)) {
+                                throw new ProtocolException('Expected continuation data frame.');
+                            }
+
+                            if (!$frame->isFinal()) {
+                                $size = $frame->getSize();
+                                $frames[] = $frame;
+                                continue;
+                            }
+
                             yield $emit(new Message($frame->getData(), $type === Frame::BINARY));
-                            break;
+                            continue;
 
                         default:
                             throw new ProtocolException('Received unrecognized frame type.');
@@ -150,7 +190,7 @@ class Rfc6455Protocol implements Protocol
                 $socket->close();
             }
 
-            yield '';
+            yield ''; // @todo Return successful or failure status.
         });
     }
 

@@ -11,9 +11,14 @@ interface Frame
     const PONG =         0xa;
 
     /**
-     * @return \Icicle\Stream\ReadableStream
+     * @return string
      */
     public function getData();
+
+    /**
+     * @return int
+     */
+    public function getSize();
 
     /**
      * @return int Returns an integer corresponding to the frame type constants.
