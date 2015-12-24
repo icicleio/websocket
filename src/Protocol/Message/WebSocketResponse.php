@@ -3,7 +3,7 @@ namespace Icicle\WebSocket\Protocol\Message;
 
 use Icicle\Http\Message\BasicResponse;
 use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Protocol\Protocol;
+use Icicle\WebSocket\Connection;
 
 class WebSocketResponse extends BasicResponse
 {
@@ -18,35 +18,24 @@ class WebSocketResponse extends BasicResponse
     private $protocol;
 
     /**
-     * @var string
+     * @var \Icicle\WebSocket\Connection
      */
-    private $subProtocol;
-
-    /**
-     * @var string[]
-     */
-    private $extensions;
+    private $connection;
 
     /**
      * @param string[][] $headers
      * @param \Icicle\WebSocket\Application $application
-     * @param \Icicle\WebSocket\Protocol\Protocol $protocol
-     * @param string $subProtocol
-     * @param string[] $extensions
+     * @param \Icicle\WebSocket\Connection $connection
      */
     public function __construct(
         array $headers,
         Application $application,
-        Protocol $protocol,
-        $subProtocol,
-        array $extensions
+        Connection $connection
     ) {
         parent::__construct(101, $headers);
 
         $this->application = $application;
-        $this->protocol = $protocol;
-        $this->subProtocol = (string) $subProtocol;
-        $this->extensions = $extensions;
+        $this->connection = $connection;
     }
 
     /**
@@ -58,26 +47,10 @@ class WebSocketResponse extends BasicResponse
     }
 
     /**
-     * @return \Icicle\WebSocket\Protocol\Protocol
+     * @return \Icicle\WebSocket\Connection
      */
-    public function getProtocol()
+    public function getConnection()
     {
-        return $this->protocol;
-    }
-
-    /**
-     * @return string
-     */
-    public function getSubProtocol()
-    {
-        return $this->subProtocol;
-    }
-
-    /**
-     * @return \string[]
-     */
-    public function getExtensions()
-    {
-        return $this->extensions;
+        return $this->connection;
     }
 }

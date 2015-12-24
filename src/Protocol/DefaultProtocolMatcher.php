@@ -27,6 +27,17 @@ class DefaultProtocolMatcher implements ProtocolMatcher
      */
     public function createResponse(Application $application, Request $request, Socket $socket)
     {
+        if ($request->getMethod() !== 'GET') {
+            $sink = new MemorySink('Only GET requests allowed for WebSocket connections.');
+            yield new BasicResponse(Response::METHOD_NOT_ALLOWED, [
+                'Connection' => 'close',
+                'Upgrade' => 'websocket',
+                'Content-Length' => $sink->getLength(),
+                'Content-Type' => 'text/plain',
+            ], $sink);
+            return;
+        }
+
         if (strtolower($request->getHeaderLine('Connection')) !== 'upgrade'
             || strtolower($request->getHeaderLine('Upgrade')) !== 'websocket'
         ) {
@@ -45,6 +56,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             yield new BasicResponse(Response::UPGRADE_REQUIRED, [
                 'Connection' => 'close',
                 'Content-Length' => $sink->getLength(),
+                'Content-Type' => 'text/plain',
                 'Upgrade' => 'websocket',
                 'Sec-WebSocket-Version' => $this->getSupportedVersions()
             ], $sink);

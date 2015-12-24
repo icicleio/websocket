@@ -20,15 +20,7 @@ class WebSocketDriver extends Http1Driver
 
         if ($response instanceof WebSocketResponse) {
             $application = $response->getApplication();
-
-            $connection = new Connection(
-                $socket,
-                $response->getProtocol(),
-                $request,
-                $response->getSubProtocol(),
-                $response->getExtensions(),
-                false
-            );
+            $connection = $response->getConnection();
 
             yield $application->onConnection($connection);
         }

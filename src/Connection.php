@@ -1,112 +1,53 @@
 <?php
 namespace Icicle\WebSocket;
 
-use Icicle\Http\Message\Message as HttpMessage;
-use Icicle\Socket\Socket;
-use Icicle\WebSocket\Protocol\Protocol;
-
-class Connection
+interface Connection
 {
-    /**
-     * @var \Icicle\Socket\Socket
-     */
-    private $socket;
-
-    /**
-     * @var \Icicle\WebSocket\Protocol\Protocol
-     */
-    private $protocol;
-
-    /**
-     * @var string
-     */
-    private $subProtocol;
-
-    /**
-     * @var \Icicle\Http\Message\Message
-     */
-    private $message;
-
-    /**
-     * @var string[]
-     */
-    private $extensions;
-
-    /**
-     * @var bool
-     */
-    private $mask;
-
-    /**
-     * @var \Icicle\Observable\Observable
-     */
-    private $observable;
-
-    /**
-     * @param \Icicle\Socket\Socket $socket
-     * @param \Icicle\WebSocket\Protocol\Protocol $protocol
-     * @param \Icicle\Http\Message\Message $message
-     * @param string $subProtocol
-     * @param string[] $extensions
-     * @param bool $mask
-     */
-    public function __construct(
-        Socket $socket,
-        Protocol $protocol,
-        HttpMessage $message,
-        $subProtocol,
-        array $extensions,
-        $mask = false
-    ) {
-        $this->socket = $socket;
-        $this->protocol = $protocol;
-        $this->message = $message;
-        $this->subProtocol = (string) $subProtocol;
-        $this->extensions = $extensions;
-        $this->mask = (bool) $mask;
-
-        $this->observable = $this->protocol->read($this->socket, $this->mask);
-    }
-
-    /**
-     * @return string
-     */
-    public function getSubProtocol()
-    {
-        return $this->subProtocol;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getExtensions()
-    {
-        return $this->extensions;
-    }
-
-    /**
-     * @return \Icicle\Http\Message\Message
-     */
-    public function getMessage()
-    {
-        return $this->message;
-    }
+    const CLOSE_NORMAL =        1000;
+    const CLOSE_GOING_AWAY =    1001;
+    const CLOSE_PROTOCOL =      1002;
+    const CLOSE_BAD_DATA =      1003;
+    const CLOSE_NO_STATUS =     1005;
+    const CLOSE_ABNORMAL =      1006;
+    const CLOSE_INVALID_DATA =  1007;
+    const CLOSE_VIOLATION =     1008;
+    const CLOSE_TOO_BIG =       1009;
+    const CLOSE_EXTENSION =     1010;
+    const CLOSE_SERVER_ERROR =  1011;
+    const CLOSE_TLS_ERROR =     1015;
 
     /**
      * @return bool
      */
-    public function isOpen()
-    {
-        return $this->socket->isWritable();
-    }
+    public function isOpen();
 
     /**
+     * HTTP request (server) or response (client) object received to create the connection.
+     *
+     * @return \Icicle\Http\Message\Message
+     */
+    public function getMessage();
+
+    /**
+     * Returns the name of any sub protocol to be used on the connection.
+     *
+     * @return string
+     */
+    public function getSubProtocol();
+
+    /**
+     * Returns an array of extension names active on this connection.
+     *
+     * @return string[]
+     */
+    public function getExtensions();
+
+    /**
+     * @param float|int $timeout
+     *
      * @return \Icicle\Observable\Observable
      */
-    public function read()
-    {
-        return $this->observable;
-    }
+    public function read($timeout = 0);
 
     /**
      * @coroutine
@@ -116,25 +57,44 @@ class Connection
      *
      * @return \Generator
      *
-     * @resolve int Number of bytes sent.
+     * @resolve int
      */
-    public function send(Message $message, $timeout = 0)
-    {
-        return $this->protocol->send($message, $this->socket, $this->mask, $timeout);
-    }
+    public function send(Message $message, $timeout = 0);
 
     /**
      * @coroutine
      *
-     * @param float|int $timeout
      * @param int $code
+     * @param float|int $timeout
      *
      * @return \Generator
      *
-     * @resolve int Close status received from the endpoint.
+     * @resolve int
      */
-    public function close($timeout = 0, $code = Protocol::CLOSE_NORMAL)
-    {
-        return $this->protocol->close($this->socket, $this->mask, $code, $timeout);
-    }
+    public function close($code = self::CLOSE_NORMAL, $timeout = 0);
+
+    /**
+     * @return string
+     */
+    public function getLocalAddress();
+
+    /**
+     * @return int
+     */
+    public function getLocalPort();
+
+    /**
+     * @return string
+     */
+    public function getRemoteAddress();
+
+    /**
+     * @return int
+     */
+    public function getRemotePort();
+
+    /**
+     * @return bool
+     */
+    public function isCryptoEnabled();
 }
