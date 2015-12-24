@@ -8,7 +8,6 @@ use Icicle\Observable\Emitter;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
 use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
@@ -70,12 +69,16 @@ class Rfc6455Protocol implements Protocol
             'Sec-WebSocket-Accept' => $this->responseKey($request->getHeaderLine('Sec-WebSocket-Key')),
         ];
 
-        $protocol = $application->selectProtocol(
-            array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Protocol')))
-        );
+        if ($request->hasHeader('Sec-WebSocket-Protocol')) {
+            $protocol = $application->selectSubProtocol(
+                array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Protocol')))
+            );
 
-        if (strlen($protocol)) {
-            $headers['Sec-WebSocket-Protocol'] = $protocol;
+            if (strlen($protocol)) {
+                $headers['Sec-WebSocket-Protocol'] = $protocol;
+            }
+        } else {
+            $protocol = '';
         }
 
         /*
@@ -88,9 +91,7 @@ class Rfc6455Protocol implements Protocol
         }
         */
 
-        $connection = new Connection($socket, $this, $request->getUri(), $protocol, [], false);
-
-        yield new WebSocketResponse($application, $connection, $headers);
+        yield new WebSocketResponse($headers, $application, $this, $protocol, []);
     }
 
     /**
@@ -137,84 +138,88 @@ class Rfc6455Protocol implements Protocol
             $size = 0;
             $frames = [];
 
-            try {
-                while ($socket->isReadable()) {
-                    /** @var \Icicle\WebSocket\Protocol\Frame $frame */
-                    $frame = (yield $this->transporter->read($socket, $timeout));
+            while ($socket->isReadable()) {
+                /** @var \Icicle\WebSocket\Protocol\Frame $frame */
+                $frame = (yield $this->transporter->read($socket, $timeout));
 
-                    if ($frame->isMasked() === $mask) {
-                        throw new ProtocolException(sprintf('Received %s frame.', $mask ? 'masked' : 'unmasked'));
-                    }
-
-                    switch ($type = $frame->getType()) {
-                        case Frame::CLOSE: // Close connection.
-                            $data = $frame->getData();
-                            if ($socket->isWritable()) {
-                                $frame = new Frame(Frame::CLOSE, '', $mask);
-                                yield $this->transporter->send($frame, $socket, $timeout);
-                            }
-                            yield $data; // @todo Parse close status from data.
-                            return;
-
-                        case Frame::PING: // Respond with pong frame.
-                            $frame = new Frame(Frame::PONG, $frame->getData(), $mask);
-                            yield $this->transporter->send($frame, $socket, $timeout);
-                            continue;
-
-                        case Frame::PONG: // Cancel timeout set by sending ping frame.
-                            // @todo Handle pong received after sending ping.
-                            continue;
-
-                        case Frame::CONTINUATION:
-                            $count = count($frames);
-
-                            if (0 === $count) {
-                                throw new ProtocolException('Received orphan continuation frame.');
-                            }
-
-                            // @todo Enforce max $size and frame $count.
-
-                            $size += $frame->getSize();
-                            $frames[] = $frame;
-
-                            if (!$frame->isFinal()) {
-                                continue;
-                            }
-
-                            $data = $frame->getData();
-
-                            while (!empty($frames)) {
-                                $frame = array_pop($frames);
-                                $data = $frame->getData() . $data;
-                            }
-
-                            yield $emit(new Message($data, $frame->getType() === Frame::BINARY));
-                            continue;
-
-                        case Frame::TEXT:
-                        case Frame::BINARY:
-                            if (!empty($frames)) {
-                                throw new ProtocolException('Expected continuation data frame.');
-                            }
-
-                            if (!$frame->isFinal()) {
-                                $size = $frame->getSize();
-                                $frames[] = $frame;
-                                continue;
-                            }
-
-                            yield $emit(new Message($frame->getData(), $type === Frame::BINARY));
-                            continue;
-
-                        default:
-                            throw new ProtocolException('Received unrecognized frame type.');
-                    }
+                if ($frame->isMasked() === $mask) {
+                    throw new ProtocolException(sprintf('Received %s frame.', $mask ? 'masked' : 'unmasked'));
                 }
-            } finally {
-                $socket->close();
+
+                switch ($type = $frame->getType()) {
+                    case Frame::CLOSE: // Close connection.
+                        $data = $frame->getData();
+
+                        $frame = new Frame(Frame::CLOSE, pack('S', self::CLOSE_NORMAL), $mask);
+                        yield $this->transporter->send($frame, $socket, $timeout);
+
+                        if (2 > strlen($data)) {
+                            yield self::CLOSE_NO_STATUS;
+                            return;
+                        }
+
+                        $bytes = unpack('Scode', substr($data, 0, 2));
+                        $data = (string) substr($data, 2);
+
+                        yield $bytes['code']; // @todo Return object with data section.
+                        return;
+
+                    case Frame::PING: // Respond with pong frame.
+                        $frame = new Frame(Frame::PONG, $frame->getData(), $mask);
+                        yield $this->transporter->send($frame, $socket, $timeout);
+                        continue;
+
+                    case Frame::PONG: // Cancel timeout set by sending ping frame.
+                        // @todo Handle pong received after sending ping.
+                        continue;
+
+                    case Frame::CONTINUATION:
+                        $count = count($frames);
+
+                        if (0 === $count) {
+                            throw new ProtocolException('Received orphan continuation frame.');
+                        }
+
+                        // @todo Enforce max $size and frame $count.
+
+                        $size += $frame->getSize();
+                        $frames[] = $frame;
+
+                        if (!$frame->isFinal()) {
+                            continue;
+                        }
+
+                        $data = $frame->getData();
+
+                        while (!empty($frames)) {
+                            $frame = array_pop($frames);
+                            $data = $frame->getData() . $data;
+                        }
+
+                        yield $emit(new Message($data, $frame->getType() === Frame::BINARY));
+                        continue;
+
+                    case Frame::TEXT:
+                    case Frame::BINARY:
+                        if (!empty($frames)) {
+                            throw new ProtocolException('Expected continuation data frame.');
+                        }
+
+                        if (!$frame->isFinal()) {
+                            $size = $frame->getSize();
+                            $frames[] = $frame;
+                            continue;
+                        }
+
+                        yield $emit(new Message($frame->getData(), $type === Frame::BINARY));
+                        continue;
+
+                    default:
+                        throw new ProtocolException('Received unrecognized frame type.');
+                }
             }
 
-            yield ''; // @todo Return successful or failure status.
+            yield self::CLOSE_NO_STATUS;
         });
     }
 
@@ -224,19 +229,36 @@ class Rfc6455Protocol implements Protocol
     public function send(Message $message, Socket $socket, $mask, $timeout = 0)
     {
         $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $mask);
-
         yield $this->transporter->send($frame, $socket, $timeout);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function close(Socket $socket, $mask, $data = '', $timeout = 0)
+    public function close(Socket $socket, $mask, $code = self::CLOSE_NORMAL, $timeout = 0)
     {
-        $frame = new Frame(Frame::CLOSE, $data, $mask);
+        $frame = new Frame(Frame::CLOSE, pack('S', (int) $code), $mask);
+        yield $this->transporter->send($frame, $socket, $timeout);
 
-        $written = (yield $this->transporter->send($frame, $socket, $timeout)) + (yield $socket->end('', $timeout));
+        /** @var \Icicle\WebSocket\Protocol\Frame $frame */
+        $frame = (yield $this->transporter->read($socket, $timeout));
 
-        yield $written;
+        $socket->close();
+
+        if ($frame->isMasked() === $mask) {
+            throw new ProtocolException(sprintf('Received %s frame.', $mask ? 'masked' : 'unmasked'));
+        }
+
+        $data = $frame->getData();
+
+        if (2 > strlen($data)) {
+            yield self::CLOSE_NO_STATUS;
+            return;
+        }
+
+        $bytes = unpack('Scode', substr($data, 0, 2));
+        $data = (string) substr($data, 2);
+
+        yield $bytes['code']; // @todo Return object with data section.
     }
 }

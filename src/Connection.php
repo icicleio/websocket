@@ -1,7 +1,7 @@
 <?php
 namespace Icicle\WebSocket;
 
-use Icicle\Http\Message\Uri;
+use Icicle\Http\Message\Message as HttpMessage;
 use Icicle\Socket\Socket;
 use Icicle\WebSocket\Protocol\Protocol;
 
@@ -15,17 +15,17 @@ class Connection
     /**
      * @var \Icicle\WebSocket\Protocol\Protocol
      */
-    private $socketProtocol;
+    private $protocol;
 
     /**
      * @var string
      */
-    private $connectionProtocol;
+    private $subProtocol;
 
     /**
-     * @var \Icicle\Http\Message\Uri
+     * @var \Icicle\Http\Message\Message
      */
-    private $uri;
+    private $message;
 
     /**
      * @var string[]
@@ -44,36 +44,36 @@ class Connection
 
     /**
      * @param \Icicle\Socket\Socket $socket
-     * @param \Icicle\WebSocket\Protocol\Protocol $socketProtocol
-     * @param \Icicle\Http\Message\Uri $uri
-     * @param string $connectionProtocol
+     * @param \Icicle\WebSocket\Protocol\Protocol $protocol
+     * @param \Icicle\Http\Message\Message $message
+     * @param string $subProtocol
      * @param string[] $extensions
      * @param bool $mask
      */
     public function __construct(
         Socket $socket,
-        Protocol $socketProtocol,
-        Uri $uri,
-        $connectionProtocol,
+        Protocol $protocol,
+        HttpMessage $message,
+        $subProtocol,
         array $extensions,
         $mask = false
     ) {
         $this->socket = $socket;
-        $this->socketProtocol = $socketProtocol;
-        $this->uri = $uri;
-        $this->connectionProtocol = (string) $connectionProtocol;
+        $this->protocol = $protocol;
+        $this->message = $message;
+        $this->subProtocol = (string) $subProtocol;
         $this->extensions = $extensions;
         $this->mask = (bool) $mask;
 
-        $this->observable = $this->socketProtocol->read($this->socket, $this->mask);
+        $this->observable = $this->protocol->read($this->socket, $this->mask);
     }
 
     /**
      * @return string
      */
-    public function getProtocol()
+    public function getSubProtocol()
     {
-        return $this->connectionProtocol;
+        return $this->subProtocol;
     }
 
     /**
@@ -85,11 +85,11 @@ class Connection
     }
 
     /**
-     * @return \Icicle\Http\Message\Uri
+     * @return \Icicle\Http\Message\Message
      */
-    public function getUri()
+    public function getMessage()
     {
-        return $this->uri;
+        return $this->message;
     }
 
     /**
@@ -120,21 +120,21 @@ class Connection
      */
     public function send(Message $message, $timeout = 0)
     {
-        return $this->socketProtocol->send($message, $this->socket, $this->mask, $timeout);
+        return $this->protocol->send($message, $this->socket, $this->mask, $timeout);
     }
 
     /**
      * @coroutine
      *
-     * @param string $data
      * @param float|int $timeout
+     * @param int $code
      *
      * @return \Generator
      *
-     * @resolve int Number of bytes sent.
+     * @resolve int Close status received from the endpoint.
      */
-    public function close($data = '', $timeout = 0)
+    public function close($timeout = 0, $code = Protocol::CLOSE_NORMAL)
     {
-        return $this->socketProtocol->close($this->socket, $this->mask, $data, $timeout);
+        return $this->protocol->close($this->socket, $this->mask, $code, $timeout);
     }
 }

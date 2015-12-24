@@ -3,7 +3,7 @@ namespace Icicle\WebSocket\Protocol\Message;
 
 use Icicle\Http\Message\BasicResponse;
 use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Connection;
+use Icicle\WebSocket\Protocol\Protocol;
 
 class WebSocketResponse extends BasicResponse
 {
@@ -13,21 +13,40 @@ class WebSocketResponse extends BasicResponse
     private $application;
 
     /**
-     * @var \Icicle\WebSocket\Connection
+     * @var \Icicle\WebSocket\Protocol\Protocol
      */
-    private $connection;
+    private $protocol;
 
     /**
-     * @param \Icicle\WebSocket\Application $application
-     * @param \Icicle\WebSocket\Connection $connection
-     * @param string[][] $headers
+     * @var string
      */
-    public function __construct(Application $application, Connection $connection, array $headers)
-    {
+    private $subProtocol;
+
+    /**
+     * @var string[]
+     */
+    private $extensions;
+
+    /**
+     * @param string[][] $headers
+     * @param \Icicle\WebSocket\Application $application
+     * @param \Icicle\WebSocket\Protocol\Protocol $protocol
+     * @param string $subProtocol
+     * @param string[] $extensions
+     */
+    public function __construct(
+        array $headers,
+        Application $application,
+        Protocol $protocol,
+        $subProtocol,
+        array $extensions
+    ) {
         parent::__construct(101, $headers);
 
         $this->application = $application;
-        $this->connection = $connection;
+        $this->protocol = $protocol;
+        $this->subProtocol = (string) $subProtocol;
+        $this->extensions = $extensions;
     }
 
     /**
@@ -39,10 +58,26 @@ class WebSocketResponse extends BasicResponse
     }
 
     /**
-     * @return \Icicle\WebSocket\Connection
+     * @return \Icicle\WebSocket\Protocol\Protocol
      */
-    public function getConnection()
+    public function getProtocol()
     {
-        return $this->connection;
+        return $this->protocol;
+    }
+
+    /**
+     * @return string
+     */
+    public function getSubProtocol()
+    {
+        return $this->subProtocol;
+    }
+
+    /**
+     * @return \string[]
+     */
+    public function getExtensions()
+    {
+        return $this->extensions;
     }
 }

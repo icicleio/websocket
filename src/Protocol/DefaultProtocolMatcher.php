@@ -40,26 +40,6 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             return;
         }
 
-        if (!$application->allowOrigin($request->getHeaderLine('Origin'))) {
-            $sink = new MemorySink('Origin forbidden.');
-            yield new BasicResponse(Response::FORBIDDEN, [
-                'Connection' => 'close',
-                'Content-Length' => $sink->getLength(),
-            ], $sink);
-            return;
-        }
-
-        if (!$request->hasHeader('Sec-WebSocket-Version')) {
-            $sink = new MemorySink('No WebSocket version header provided.');
-            yield new BasicResponse(Response::BAD_REQUEST, [
-                'Connection' => 'close',
-                'Content-Length' => $sink->getLength(),
-                'Upgrade' => 'websocket',
-                'Sec-WebSocket-Version' => $this->getSupportedVersions()
-            ], $sink);
-            return;
-        }
-
         if (!$this->protocol->isProtocol($request)) {
             $sink = new MemorySink('Unsupported protocol version.');
             yield new BasicResponse(Response::UPGRADE_REQUIRED, [

@@ -1,29 +1,21 @@
 <?php
 namespace Icicle\Examples\WebSocket;
 
+use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
+use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Message;
 
 class EchoApplication implements Application
 {
-    public function allowOrigin($origin)
-    {
-        return true;
-    }
-
-    public function selectProtocol(array $protocols)
+    public function selectSubProtocol(array $protocols)
     {
         return '';
     }
 
-    public function selectExtensions(array $extensions)
-    {
-        return [];
-    }
-
-    public function createResponse(Response $response)
+    public function onHandshake(Response $response, Request $request, Socket $socket)
     {
         yield $response;
     }
@@ -44,5 +36,7 @@ class EchoApplication implements Application
                 yield $connection->send($message);
             }
         }
+
+        printf("Close status: %d\n", $iterator->getReturn());
     }
 }

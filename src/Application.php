@@ -1,43 +1,44 @@
 <?php
 namespace Icicle\WebSocket;
 
+use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
+use Icicle\Socket\Socket;
 
 interface Application
 {
     /**
-     * @param string $origin
+     * This method should select a sub protocol to use from an array of protocols provided in the request. This method
+     * is only invoked if a list of sub protocols is provided in the request.
      *
-     * @return bool
-     */
-    public function allowOrigin($origin);
-
-    /**
      * @param array $protocols
      *
      * @return string
      */
-    public function selectProtocol(array $protocols);
+    public function selectSubProtocol(array $protocols);
 
     /**
-     * @param array $extensions
+     * This method is called before responding to a handshake request when the request has been verified to be a valid
+     * WebSocket request. This method can simply resolve with the response object given to it if no headers need to be
+     * set or no other validation is needed. This method can also reject the request by resolving with another response
+     * object entirely.
      *
-     * @return array
-     */
-    public function selectExtensions(array $extensions);
-
-    /**
      * @coroutine
      *
      * @param \Icicle\Http\Message\Response $response
+     * @param \Icicle\Http\Message\Request $request
+     * @param \Icicle\Socket\Socket $socket
      *
      * @return \Generator
      *
      * @resolve \Icicle\Http\Message\Response
      */
-    public function createResponse(Response $response);
+    public function onHandshake(Response $response, Request $request, Socket $socket);
 
     /**
+     * This method is called when a WebSocket connection is established to the WebSocket server. This method should
+     * not resolve until the connection should be closed.
+     *
      * @coroutine
      *
      * @param \Icicle\WebSocket\Connection $connection

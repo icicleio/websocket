@@ -50,7 +50,7 @@ class WebSocketRequestHandler implements RequestHandler
 
         $response = (yield $this->matcher->createResponse($application, $request, $socket));
 
-        yield $application->createResponse($response);
+        yield $application->onHandshake($response, $request, $socket);
     }
 
     /**

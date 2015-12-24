@@ -5,6 +5,7 @@ use Icicle\Http\Driver\Http1Driver;
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
 use Icicle\Socket\Socket;
+use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
 
 class WebSocketDriver extends Http1Driver
@@ -19,7 +20,15 @@ class WebSocketDriver extends Http1Driver
 
         if ($response instanceof WebSocketResponse) {
             $application = $response->getApplication();
-            $connection = $response->getConnection();
+
+            $connection = new Connection(
+                $socket,
+                $response->getProtocol(),
+                $request,
+                $response->getSubProtocol(),
+                $response->getExtensions(),
+                false
+            );
 
             yield $application->onConnection($connection);
         }
