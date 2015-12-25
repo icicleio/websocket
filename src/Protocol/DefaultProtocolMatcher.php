@@ -38,8 +38,8 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             return;
         }
 
-        if (strtolower($request->getHeaderLine('Connection')) !== 'upgrade'
-            || strtolower($request->getHeaderLine('Upgrade')) !== 'websocket'
+        if (strtolower($request->getHeader('Connection')) !== 'upgrade'
+            || strtolower($request->getHeader('Upgrade')) !== 'websocket'
         ) {
             $sink = new MemorySink('Must upgrade to WebSocket connection for requested resource.');
             yield new BasicResponse(Response::UPGRADE_REQUIRED, [

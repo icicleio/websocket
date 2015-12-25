@@ -41,7 +41,7 @@ class Rfc6455Protocol implements Protocol
      */
     public function isProtocol(Request $request)
     {
-        $versions = array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Version')));
+        $versions = array_map('trim', explode(',', $request->getHeader('Sec-WebSocket-Version')));
 
         return in_array(self::VERSION, $versions);
     }
@@ -63,12 +63,12 @@ class Rfc6455Protocol implements Protocol
         $headers = [
             'Connection' => 'upgrade',
             'Upgrade' => 'websocket',
-            'Sec-WebSocket-Accept' => $this->responseKey(trim($request->getHeaderLine('Sec-WebSocket-Key'))),
+            'Sec-WebSocket-Accept' => $this->responseKey(trim($request->getHeader('Sec-WebSocket-Key'))),
         ];
 
         if ($request->hasHeader('Sec-WebSocket-Protocol')) {
             $protocol = $application->selectSubProtocol(
-                array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Protocol')))
+                array_map('trim', explode(',', $request->getHeader('Sec-WebSocket-Protocol')))
             );
 
             if (strlen($protocol)) {
@@ -80,7 +80,7 @@ class Rfc6455Protocol implements Protocol
 
         /*
         $extensions = $application->selectExtensions(
-            array_map('trim', explode(',', $request->getHeaderLine('Sec-WebSocket-Extensions')))
+            array_map('trim', explode(',', $request->getHeader('Sec-WebSocket-Extensions')))
         );
 
         if (!empty($extensions)) {
@@ -98,13 +98,13 @@ class Rfc6455Protocol implements Protocol
      */
     public function validateResponse(Request $request, Response $response)
     {
-        $key = $request->getHeaderLine('Sec-WebSocket-Key');
+        $key = $request->getHeader('Sec-WebSocket-Key');
 
         if (!$response->hasHeader('Sec-WebSocket-Accept')) {
             return false;
         }
 
-        return $this->responseKey($key) === $response->getHeaderLine('Sec-WebSocket-Accept');
+        return $this->responseKey($key) === $response->getHeader('Sec-WebSocket-Accept');
     }
 
     /**
