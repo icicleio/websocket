@@ -129,7 +129,11 @@ class Rfc6455Transporter implements Transporter
             $length = self::EIGHT_BYTE_LENGTH_FLAG;
         }
 
-        $byte = ($frame->isMasked() ? self::MASK_FLAG_MASK : 0) | ($length & self::LENGTH_MASK);
+        $byte = $length;
+
+        if ($frame->isMasked()) {
+            $byte |= self::MASK_FLAG_MASK;
+        }
 
         $buffer .= chr($byte);
 

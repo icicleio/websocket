@@ -1,15 +1,20 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
+use Icicle\Coroutine;
 use Icicle\Http\Message\Message as HttpMessage;
 use Icicle\Observable\Emitter;
-use Icicle\Socket\Socket as NetworkSocket;
+use Icicle\Loop;
+use Icicle\Socket\Socket;
 use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
 
 class Rfc6455Connection implements Connection
 {
+    const DEFAULT_TIMEOUT = 10;
+    const DEFAULT_INACTIVITY_TIMEOUT = 60;
+
     /**
      * @var \Icicle\Socket\Socket
      */
@@ -41,9 +46,34 @@ class Rfc6455Connection implements Connection
     private $extensions;
 
     /**
+     * @var \Icicle\Observable\Observable
+     */
+    private $observable;
+
+    /**
+     * @var \Icicle\Loop\Watcher\Timer
+     */
+    private $ping;
+
+    /**
+     * @var \Icicle\Loop\Watcher\Timer|null
+     */
+    private $pong;
+
+    /**
+     * @var string|null
+     */
+    private $expected;
+
+    /**
      * @var bool
      */
     private $closed = false;
+
+    /**
+     * @var float|int
+     */
+    private $timeout = self::DEFAULT_TIMEOUT;
 
     /**
      * @param \Icicle\WebSocket\Protocol\Transporter $transporter
@@ -55,79 +85,72 @@ class Rfc6455Connection implements Connection
      */
     public function __construct(
         Transporter $transporter,
-        NetworkSocket $socket,
+        Socket $socket,
         HttpMessage $message,
         $mask,
         $subProtocol,
-        array $extensions
+        array $extensions,
+        array $options = []
     ) {
+        $this->timeout = isset($options['timeout']) ? (float) $options['timeout'] : self::DEFAULT_TIMEOUT;
+
+        $interval = isset($options['inactivity_timeout'])
+            ? (float) $options['inactivity_timeout']
+            : self::DEFAULT_INACTIVITY_TIMEOUT;
+
+        $callback = Coroutine\wrap(function () {
+            try {
+                yield $this->ping($this->expected = base64_encode(random_bytes(3)));
+
+                $callback = Coroutine\wrap(function () {
+                    try {
+                        yield $this->close(self::CLOSE_VIOLATION);
+                    } catch (\Exception $exception) {
+                        $this->socket->close();
+                    }
+                });
+
+                $this->pong = Loop\timer($this->timeout, $callback);
+                $this->pong->unreference();
+            } catch (\Exception $exception) {
+                $this->socket->close();
+            }
+        });
+
+        $this->ping = Loop\periodic($interval, $callback);
+        $this->ping->unreference();
+
         $this->transporter = $transporter;
         $this->socket = $socket;
         $this->message = $message;
         $this->subProtocol = $subProtocol;
         $this->extensions = $extensions;
         $this->mask = (bool) $mask;
-    }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function isOpen()
-    {
-        return $this->socket->isOpen() && !$this->closed;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getMessage()
-    {
-        return $this->message;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getSubProtocol()
-    {
-        return $this->subProtocol;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getExtensions()
-    {
-        return $this->extensions;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function read($timeout = 0)
-    {
-        return new Emitter(function (callable $emit) use ($timeout) {
+        $this->observable = new Emitter(function (callable $emit) {
             /** @var \Icicle\WebSocket\Protocol\Frame[] $frames */
             $frames = [];
             $size = 0;
 
             while ($this->socket->isReadable()) {
                 /** @var \Icicle\WebSocket\Protocol\Frame $frame */
-                $frame = (yield $this->transporter->read($this->socket, $timeout));
+                $frame = (yield $this->transporter->read($this->socket));
 
                 if ($frame->isMasked() === $this->mask) {
-                    throw new ProtocolException(sprintf('Received %s frame.', $mask ? 'masked' : 'unmasked'));
+                    throw new ProtocolException(
+                        sprintf('Received %s frame.', $frame->isMasked() ? 'masked' : 'unmasked')
+                    );
                 }
+
+                $this->ping->again();
 
                 switch ($type = $frame->getType()) {
                     case Frame::CLOSE: // Close connection.
-                        $data = $frame->getData();
-
-                        if (!$this->closed) {
-                            $this->closed = true;
-                            $frame = new Frame(Frame::CLOSE, pack('S', self::CLOSE_NORMAL), $this->mask);
-                            yield $this->transporter->send($frame, $this->socket, $timeout);
+                        if (!$this->closed) { // Respond with close frame if one has not been sent.
+                            yield $this->close(self::CLOSE_NORMAL);
                         }
+
+                        $data = $frame->getData();
 
                         if (2 > strlen($data)) {
                             yield self::CLOSE_NO_STATUS;
@@ -141,12 +164,22 @@ class Rfc6455Connection implements Connection
                         return;
 
                     case Frame::PING: // Respond with pong frame.
-                        $frame = new Frame(Frame::PONG, $frame->getData(), $this->mask);
-                        yield $this->transporter->send($frame, $this->socket, $timeout);
+                        yield $this->pong($frame->getData());
                         continue;
 
                     case Frame::PONG: // Cancel timeout set by sending ping frame.
-                        // @todo Handle pong received after sending ping.
+                        if (null === $this->pong) {
+                            yield $this->close(self::CLOSE_PROTOCOL);
+                            continue;
+                        }
+
+                        $this->pong->stop();
+                        $this->pong = null;
+
+                        if ($frame->getData() !== $this->expected) {
+                            yield $this->close(self::CLOSE_VIOLATION);
+                        }
+
                         continue;
 
                     case Frame::CONTINUATION:
@@ -191,6 +224,7 @@ class Rfc6455Connection implements Connection
                         continue;
 
                     default:
+                        yield $this->close(self::CLOSE_PROTOCOL);
                         throw new ProtocolException('Received unrecognized frame type.');
                 }
             }
@@ -199,24 +233,107 @@ class Rfc6455Connection implements Connection
         });
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function send(Message $message, $timeout = 0)
+    public function __destruct()
     {
-        $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $this->mask);
-        yield $this->transporter->send($frame, $this->socket, $timeout);
+        $this->ping->stop();
+
+        if (null !== $this->pong) {
+            $this->pong->stop();
+        }
     }
 
     /**
      * {@inheritdoc}
      */
-    public function close($code = self::CLOSE_NORMAL, $timeout = 0)
+    public function isOpen()
+    {
+        return $this->socket->isOpen() && !$this->closed;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getMessage()
+    {
+        return $this->message;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getSubProtocol()
+    {
+        return $this->subProtocol;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getExtensions()
+    {
+        return $this->extensions;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function read()
+    {
+        return $this->observable;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function send(Message $message)
+    {
+        $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $this->mask);
+        yield $this->transporter->send($frame, $this->socket, $this->timeout);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function close($code = self::CLOSE_NORMAL)
     {
         $this->closed = true;
 
         $frame = new Frame(Frame::CLOSE, pack('S', (int) $code), $this->mask);
-        yield $this->transporter->send($frame, $this->socket, $timeout);
+        yield $this->transporter->send($frame, $this->socket, $this->timeout);
+    }
+
+    /**
+     * Sends a ping frame on the connection with the given data.
+     *
+     * @coroutine
+     *
+     * @param string $data
+     *
+     * @return \Generator
+     *
+     * @resolve int
+     */
+    protected function ping($data = '')
+    {
+        $frame = new Frame(Frame::PING, $data, $this->mask);
+        return $this->transporter->send($frame, $this->socket, $this->timeout);
+    }
+
+    /**
+     * Sends a pong frame on the connection with the given data.
+     *
+     * @coroutine
+     *
+     * @param string $data
+     *
+     * @return \Generator
+     *
+     * @resolve int
+     */
+    protected function pong($data = '')
+    {
+        $frame = new Frame(Frame::PONG, $data, $this->mask);
+        return $this->transporter->send($frame, $this->socket, $this->timeout);
     }
 
     /**

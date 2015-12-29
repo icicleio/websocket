@@ -43,35 +43,31 @@ interface Connection
     public function getExtensions();
 
     /**
-     * @param float|int $timeout
-     *
      * @return \Icicle\Observable\Observable
      */
-    public function read($timeout = 0);
+    public function read();
 
     /**
      * @coroutine
      *
      * @param \Icicle\WebSocket\Message $message
-     * @param float|int $timeout
      *
      * @return \Generator
      *
      * @resolve int
      */
-    public function send(Message $message, $timeout = 0);
+    public function send(Message $message);
 
     /**
      * @coroutine
      *
      * @param int $code
-     * @param float|int $timeout
      *
      * @return \Generator
      *
      * @resolve int
      */
-    public function close($code = self::CLOSE_NORMAL, $timeout = 0);
+    public function close($code = self::CLOSE_NORMAL);
 
     /**
      * @return string
