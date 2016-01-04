@@ -3,19 +3,6 @@ namespace Icicle\WebSocket;
 
 interface Connection
 {
-    const CLOSE_NORMAL =        1000;
-    const CLOSE_GOING_AWAY =    1001;
-    const CLOSE_PROTOCOL =      1002;
-    const CLOSE_BAD_DATA =      1003;
-    const CLOSE_NO_STATUS =     1005;
-    const CLOSE_ABNORMAL =      1006;
-    const CLOSE_INVALID_DATA =  1007;
-    const CLOSE_VIOLATION =     1008;
-    const CLOSE_TOO_BIG =       1009;
-    const CLOSE_EXTENSION =     1010;
-    const CLOSE_SERVER_ERROR =  1011;
-    const CLOSE_TLS_ERROR =     1015;
-
     /**
      * @return bool
      */
@@ -43,7 +30,14 @@ interface Connection
     public function getExtensions();
 
     /**
+     * Returns an observable that emits \Icicle\WebSocket\Message instances when a message is received and resolves
+     * with an instance of \Icicle\WebSocket\Close when the connection in closed.
+     *
      * @return \Icicle\Observable\Observable
+     *
+     * @emit \Icicle\WebSocket\Message
+     *
+     * @resolve \Icicle\WebSocket\Close
      */
     public function read();
 
@@ -62,12 +56,13 @@ interface Connection
      * @coroutine
      *
      * @param int $code
+     * @param string $data
      *
      * @return \Generator
      *
      * @resolve int
      */
-    public function close($code = self::CLOSE_NORMAL);
+    public function close($code = Close::NORMAL, $data = '');
 
     /**
      * @return string

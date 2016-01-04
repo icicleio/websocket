@@ -38,4 +38,12 @@ class Message
     {
         return $this->binary;
     }
+
+    /**
+     * @return string
+     */
+    public function __toString()
+    {
+        return $this->data;
+    }
 }

@@ -6,6 +6,7 @@ use Icicle\Http\Message\Message as HttpMessage;
 use Icicle\Observable\Emitter;
 use Icicle\Loop;
 use Icicle\Socket\Socket;
+use Icicle\WebSocket\Close;
 use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
@@ -68,10 +69,11 @@ class Rfc6455Connection implements Connection
     /**
      * @param \Icicle\WebSocket\Protocol\Transporter $transporter
      * @param \Icicle\Socket\Socket $socket
-     * @param \Icicle\Http\Message\Message
+     * @param \Icicle\Http\Message\Message $message
      * @param bool $mask
      * @param string $subProtocol
      * @param string[] $extensions
+     * @param mixed[] $options
      */
     public function __construct(
         Transporter $transporter,
@@ -144,14 +146,16 @@ class Rfc6455Connection implements Connection
 
                     $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
                         try {
-                            yield $this->close(self::CLOSE_VIOLATION);
+                            yield $this->close(Close::VIOLATION);
                         } catch (\Exception $exception) {
-                            $this->socket->close();
+                            $this->observable->dispose(
+                                new ProtocolException('Could not write close frame after ping timeout.')
+                            );
                         }
                     }));
                     $pong->unreference();
                 } catch (\Exception $exception) {
-                    $this->socket->close();
+                    $this->observable->dispose(new ProtocolException('Could not send ping frame.'));
                 }
             }));
             $ping->unreference();
@@ -172,20 +176,18 @@ class Rfc6455Connection implements Connection
                     switch ($type = $frame->getType()) {
                         case Frame::CLOSE: // Close connection.
                             if (!$this->closed) { // Respond with close frame if one has not been sent.
-                                yield $this->close(self::CLOSE_NORMAL);
+                                yield $this->close(Close::NORMAL);
                             }
 
                             $data = $frame->getData();
 
                             if (2 > strlen($data)) {
-                                yield self::CLOSE_NO_STATUS;
+                                yield new Close(Close::NO_STATUS);
                                 return;
                             }
 
                             $bytes = unpack('Scode', substr($data, 0, 2));
-                            $data = (string) substr($data, 2);
-
-                            yield $bytes['code']; // @todo Return object with data section.
+                            yield new Close($bytes['code'], (string) substr($data, 2));
                             return;
 
                         case Frame::PING: // Respond with pong frame.
@@ -254,11 +256,13 @@ class Rfc6455Connection implements Connection
                     }
                 }
             } catch (ProtocolException $exception) {
-                yield $this->close(self::CLOSE_PROTOCOL);
-                throw $exception;
+                $code = Close::PROTOCOL;
+                yield $this->close($code);
+                yield new Close($code);
+                return;
             } catch (\Exception $exception) {
                 if ($this->socket->isWritable()) {
-                    yield $this->close(self::CLOSE_SERVER_ERROR);
+                    yield $this->close(Close::SERVER_ERROR);
                 }
                 throw $exception;
             } finally {
@@ -271,7 +275,7 @@ class Rfc6455Connection implements Connection
                 }
             }
 
-            yield self::CLOSE_ABNORMAL;
+            yield new Close(Close::ABNORMAL);
         });
     }
 
@@ -287,11 +291,11 @@ class Rfc6455Connection implements Connection
     /**
      * {@inheritdoc}
      */
-    public function close($code = self::CLOSE_NORMAL)
+    public function close($code = Close::NORMAL, $data = '')
     {
         $this->closed = true;
 
-        $frame = new Frame(Frame::CLOSE, pack('S', (int) $code), $this->mask);
+        $frame = new Frame(Frame::CLOSE, pack('S', (int) $code) . $data, $this->mask);
         yield $this->transporter->send($frame, $this->socket, $this->timeout);
     }
 

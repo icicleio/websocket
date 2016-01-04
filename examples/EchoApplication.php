@@ -37,6 +37,9 @@ class EchoApplication implements Application
             }
         }
 
-        printf("Close status: %d\n", $iterator->getReturn());
+        /** @var \Icicle\WebSocket\Close $close */
+        $close = $iterator->getReturn();
+
+        printf("Close code: %d\n", $close->getCode());
     }
 }
