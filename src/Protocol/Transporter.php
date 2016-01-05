@@ -9,6 +9,7 @@ interface Transporter
      * @coroutine
      *
      * @param \Icicle\Socket\Socket $socket
+     * @param int $maxSize Max frame size.
      * @param float|int $timeout
      *
      * @return \Generator
@@ -17,7 +18,7 @@ interface Transporter
      *
      * @throws \Icicle\WebSocket\Exception\FrameException
      */
-    public function read(Socket $socket, $timeout = 0);
+    public function read(Socket $socket, $maxSize, $timeout = 0);
 
     /**
      * @coroutine

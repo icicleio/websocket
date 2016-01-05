@@ -4,6 +4,7 @@ namespace Icicle\WebSocket\Protocol;
 use Icicle\Socket\Socket;
 use Icicle\Stream;
 use Icicle\WebSocket\Exception\FrameException;
+use Icicle\WebSocket\Exception\PolicyException;
 
 class Rfc6455Transporter implements Transporter
 {
@@ -37,7 +38,7 @@ class Rfc6455Transporter implements Transporter
     /**
      * {@inheritdoc}
      */
-    public function read(Socket $socket, $timeout = 0)
+    public function read(Socket $socket, $maxSize, $timeout = 0)
     {
         $buffer = (yield Stream\readTo($socket, 2, $timeout));
 
@@ -75,7 +76,9 @@ class Rfc6455Transporter implements Transporter
             }
         }
 
-        // @todo Enforce a max frame size (should frame data be a stream?)
+        if ($size > $maxSize) {
+            throw new PolicyException('Frame size exceeded max allowed size.');
+        }
 
         if ($mask) {
             $buffer = (yield Stream\readTo($socket, 4, $timeout));

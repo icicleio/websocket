@@ -5,9 +5,12 @@ use Icicle\Coroutine;
 use Icicle\Http\Message\Message as HttpMessage;
 use Icicle\Observable\Emitter;
 use Icicle\Loop;
+use Icicle\Socket\Exception\Exception as SocketException;
 use Icicle\Socket\Socket;
+use Icicle\Stream\Exception\Exception as StreamException;
 use Icicle\WebSocket\Close;
 use Icicle\WebSocket\Connection;
+use Icicle\WebSocket\Exception\PolicyException;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
 
@@ -15,6 +18,8 @@ class Rfc6455Connection implements Connection
 {
     const DEFAULT_TIMEOUT = 5;
     const DEFAULT_INACTIVITY_TIMEOUT = 60;
+    const DEFAULT_MAX_MESSAGE_SIZE = 0x100000; // 1 MB
+    const DEFAULT_MAX_FRAME_COUNT = 4;
 
     /**
      * @var \Icicle\Socket\Socket
@@ -62,11 +67,6 @@ class Rfc6455Connection implements Connection
     private $timeout = self::DEFAULT_TIMEOUT;
 
     /**
-     * @var float|int
-     */
-    private $interval = self::DEFAULT_INACTIVITY_TIMEOUT;
-
-    /**
      * @param \Icicle\WebSocket\Protocol\Transporter $transporter
      * @param \Icicle\Socket\Socket $socket
      * @param \Icicle\Http\Message\Message $message
@@ -86,9 +86,17 @@ class Rfc6455Connection implements Connection
     ) {
         $this->timeout = isset($options['timeout']) ? (float) $options['timeout'] : self::DEFAULT_TIMEOUT;
 
-        $this->interval = isset($options['inactivity_timeout'])
+        $interval = isset($options['inactivity_timeout'])
             ? (float) $options['inactivity_timeout']
             : self::DEFAULT_INACTIVITY_TIMEOUT;
+
+        $maxMessageSize = isset($options['max_message_size'])
+            ? (int) $options['max_frame_size']
+            : self::DEFAULT_MAX_MESSAGE_SIZE;
+
+        $maxFrameCount = isset($options['max_frame_count'])
+            ? (int) $options['max_frame_count']
+            : self::DEFAULT_MAX_FRAME_COUNT;
 
         $this->transporter = $transporter;
         $this->socket = $socket;
@@ -96,6 +104,8 @@ class Rfc6455Connection implements Connection
         $this->subProtocol = $subProtocol;
         $this->extensions = $extensions;
         $this->mask = (bool) $mask;
+
+        $this->observable = $this->createObservable($interval, $maxMessageSize, $maxFrameCount);
     }
 
     /**
@@ -135,27 +145,39 @@ class Rfc6455Connection implements Connection
      */
     public function read()
     {
-        return $this->observable = $this->observable ?: new Emitter(function (callable $emit) {
+        return $this->observable;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    private function createObservable($interval, $maxSize, $maxFrames)
+    {
+        return new Emitter(function (callable $emit) use ($interval, $maxSize, $maxFrames) {
             /** @var \Icicle\WebSocket\Protocol\Frame[] $frames */
             $frames = [];
             $size = 0;
 
-            $ping = Loop\periodic($this->interval, Coroutine\wrap(function () use (&$pong, &$expected) {
+            $ping = Loop\periodic($interval, Coroutine\wrap(function () use (&$pong, &$expected) {
                 try {
                     yield $this->ping($expected = base64_encode(random_bytes(3)));
 
-                    $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
-                        try {
-                            yield $this->close(Close::VIOLATION);
-                        } catch (\Exception $exception) {
-                            $this->observable->dispose(
-                                new ProtocolException('Could not write close frame after ping timeout.')
-                            );
-                        }
-                    }));
-                    $pong->unreference();
+                    if (null === $pong) {
+                        $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
+                            try {
+                                yield $this->close(Close::VIOLATION);
+                            } catch (\Exception $exception) {
+                                // Ignore exception if writing close frame fails.
+                            }
+
+                            $this->socket->close();
+                        }));
+                        $pong->unreference();
+                    } else {
+                        $pong->again();
+                    }
                 } catch (\Exception $exception) {
-                    $this->observable->dispose(new ProtocolException('Could not send ping frame.'));
+                    $this->observable->dispose(new ProtocolException('Could not send ping frame.', 0, $exception));
                 }
             }));
             $ping->unreference();
@@ -163,7 +185,7 @@ class Rfc6455Connection implements Connection
             try {
                 while ($this->socket->isReadable()) {
                     /** @var \Icicle\WebSocket\Protocol\Frame $frame */
-                    $frame = (yield $this->transporter->read($this->socket));
+                    $frame = (yield $this->transporter->read($this->socket, $maxSize - $size));
 
                     if ($frame->isMasked() === $this->mask) {
                         throw new ProtocolException(
@@ -195,17 +217,10 @@ class Rfc6455Connection implements Connection
                             continue;
 
                         case Frame::PONG: // Cancel timeout set by sending ping frame.
-                            if (null === $pong) {
-                                continue; // Unsolicited pong frame, just continue.
+                            // Only stop timer if ping sent and pong data matches ping data.
+                            if (null !== $pong && $frame->getData() === $expected) {
+                                $pong->stop();
                             }
-
-                            $pong->stop();
-                            $pong = null;
-
-                            if ($frame->getData() !== $expected) {
-                                throw new ProtocolException('Pong frame data did not match ping frame data.');
-                            }
-
                             continue;
 
                         case Frame::CONTINUATION:
@@ -215,12 +230,13 @@ class Rfc6455Connection implements Connection
                                 throw new ProtocolException('Received orphan continuation frame.');
                             }
 
-                            // @todo Enforce max $size and frame $count.
-
-                            $size += $frame->getSize();
                             $frames[] = $frame;
+                            $size += $frame->getSize();
 
                             if (!$frame->isFinal()) {
+                                if ($count + 1 >= $maxFrames) {
+                                    throw new PolicyException('Too many frames in message.');
+                                }
                                 continue;
                             }
 
@@ -232,6 +248,7 @@ class Rfc6455Connection implements Connection
                             }
 
                             $frames = [];
+                            $size = 0;
 
                             yield $emit(new Message($data, $frame->getType() === Frame::BINARY));
                             continue;
@@ -255,27 +272,32 @@ class Rfc6455Connection implements Connection
                             throw new ProtocolException('Received unrecognized frame type.');
                     }
                 }
+            } catch (PolicyException $exception) {
+                $code = Close::VIOLATION;
             } catch (ProtocolException $exception) {
                 $code = Close::PROTOCOL;
-                yield $this->close($code);
-                yield new Close($code);
-                return;
-            } catch (\Exception $exception) {
-                if ($this->socket->isWritable()) {
-                    yield $this->close(Close::SERVER_ERROR);
-                }
-                throw $exception;
+            } catch (SocketException $exception) {
+                $code = Close::ABNORMAL;
+            } catch (StreamException $exception) {
+                $code = Close::ABNORMAL;
             } finally {
                 $ping->stop();
-                $ping = null;
-
                 if (null !== $pong) {
                     $pong->stop();
-                    $pong = null;
                 }
             }
 
-            yield new Close(Close::ABNORMAL);
+            $close = new Close(isset($code) ? $code : Close::ABNORMAL);
+
+            try {
+                if ($this->isOpen()) {
+                    yield $this->close($close->getCode());
+                }
+            } catch (\Exception $exception) {
+                // Ignore exception if writing close frame fails.
+            }
+
+            yield $close;
         });
     }
 
