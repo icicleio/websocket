@@ -101,11 +101,6 @@ class Rfc6455Transporter implements Transporter
             throw new FrameException('Non-text or non-binary frame must be final.');
         }
 
-        // Text frames received must contain only valid UTF-8.
-        if ($opcode === self::OPCODE_TEXT && !preg_match('//u', $buffer)) {
-            throw new FrameException('Invalid UTF-8 data received.');
-        }
-
         yield new Frame($opcode, $buffer, (bool) $mask, $final);
     }
 

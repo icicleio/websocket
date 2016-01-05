@@ -10,6 +10,8 @@ use Icicle\Socket\Socket;
 use Icicle\Stream\Exception\Exception as StreamException;
 use Icicle\WebSocket\Close;
 use Icicle\WebSocket\Connection;
+use Icicle\WebSocket\Exception\ConnectionException;
+use Icicle\WebSocket\Exception\DataException;
 use Icicle\WebSocket\Exception\PolicyException;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
@@ -19,7 +21,7 @@ class Rfc6455Connection implements Connection
     const DEFAULT_TIMEOUT = 5;
     const DEFAULT_INACTIVITY_TIMEOUT = 60;
     const DEFAULT_MAX_MESSAGE_SIZE = 0x100000; // 1 MB
-    const DEFAULT_MAX_FRAME_COUNT = 4;
+    const DEFAULT_MAX_FRAME_COUNT = 128;
 
     /**
      * @var \Icicle\Socket\Socket
@@ -149,7 +151,11 @@ class Rfc6455Connection implements Connection
     }
 
     /**
-     * {@inheritdoc}
+     * @param float $interval
+     * @param int $maxSize
+     * @param int $maxFrames
+     *
+     * @return \Icicle\Observable\Observable
      */
     private function createObservable($interval, $maxSize, $maxFrames)
     {
@@ -164,12 +170,7 @@ class Rfc6455Connection implements Connection
 
                     if (null === $pong) {
                         $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
-                            try {
-                                yield $this->close(Close::VIOLATION);
-                            } catch (\Exception $exception) {
-                                // Ignore exception if writing close frame fails.
-                            }
-
+                            yield $this->close(Close::VIOLATION);
                             $this->socket->close();
                         }));
                         $pong->unreference();
@@ -177,7 +178,7 @@ class Rfc6455Connection implements Connection
                         $pong->again();
                     }
                 } catch (\Exception $exception) {
-                    $this->observable->dispose(new ProtocolException('Could not send ping frame.', 0, $exception));
+                    $this->socket->close();
                 }
             }));
             $ping->unreference();
@@ -209,7 +210,14 @@ class Rfc6455Connection implements Connection
                             }
 
                             $bytes = unpack('Scode', substr($data, 0, 2));
-                            yield new Close($bytes['code'], (string) substr($data, 2));
+
+                            $data = (string) substr($data, 2);
+
+                            if (!preg_match('//u', $data)) {
+                                throw new DataException('Invalid UTF-8 data received.');
+                            }
+
+                            yield new Close($bytes['code'], $data);
                             return;
 
                         case Frame::PING: // Respond with pong frame.
@@ -250,7 +258,13 @@ class Rfc6455Connection implements Connection
                             $frames = [];
                             $size = 0;
 
-                            yield $emit(new Message($data, $frame->getType() === Frame::BINARY));
+                            $type = $frame->getType();
+
+                            if ($type === Frame::TEXT && !preg_match('//u', $data)) {
+                                throw new DataException('Invalid UTF-8 data received.');
+                            }
+
+                            yield $emit(new Message($data, $type === Frame::BINARY));
                             continue;
 
                         case Frame::TEXT:
@@ -265,21 +279,25 @@ class Rfc6455Connection implements Connection
                                 continue;
                             }
 
-                            yield $emit(new Message($frame->getData(), $type === Frame::BINARY));
+                            $data = $frame->getData();
+
+                            if ($type === Frame::TEXT && !preg_match('//u', $data)) {
+                                throw new DataException('Invalid UTF-8 data received.');
+                            }
+
+                            yield $emit(new Message($data, $type === Frame::BINARY));
                             continue;
 
                         default:
                             throw new ProtocolException('Received unrecognized frame type.');
                     }
                 }
-            } catch (PolicyException $exception) {
-                $code = Close::VIOLATION;
-            } catch (ProtocolException $exception) {
-                $code = Close::PROTOCOL;
+            } catch (ConnectionException $exception) {
+                $close = new Close($exception->getReasonCode(), $exception->getMessage());
             } catch (SocketException $exception) {
-                $code = Close::ABNORMAL;
+                $close = new Close(Close::ABNORMAL, $exception->getMessage());
             } catch (StreamException $exception) {
-                $code = Close::ABNORMAL;
+                $close = new Close(Close::ABNORMAL, $exception->getMessage());
             } finally {
                 $ping->stop();
                 if (null !== $pong) {
@@ -287,14 +305,12 @@ class Rfc6455Connection implements Connection
                 }
             }
 
-            $close = new Close(isset($code) ? $code : Close::ABNORMAL);
+            if (!isset($close)) {
+                $close = new Close(Close::ABNORMAL);
+            }
 
-            try {
-                if ($this->isOpen()) {
-                    yield $this->close($close->getCode());
-                }
-            } catch (\Exception $exception) {
-                // Ignore exception if writing close frame fails.
+            if ($this->isOpen()) {
+                yield $this->close($close->getCode());
             }
 
             yield $close;
@@ -307,7 +323,12 @@ class Rfc6455Connection implements Connection
     public function send(Message $message)
     {
         $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $this->mask);
-        yield $this->transporter->send($frame, $this->socket, $this->timeout);
+
+        try {
+            yield $this->transporter->send($frame, $this->socket, $this->timeout);
+        } catch (\Exception $exception) {
+            yield 0;
+        }
     }
 
     /**
@@ -318,7 +339,12 @@ class Rfc6455Connection implements Connection
         $this->closed = true;
 
         $frame = new Frame(Frame::CLOSE, pack('S', (int) $code) . $data, $this->mask);
-        yield $this->transporter->send($frame, $this->socket, $this->timeout);
+
+        try {
+            yield $this->transporter->send($frame, $this->socket, $this->timeout);
+        } catch (\Exception $exception) {
+            yield 0;
+        }
     }
 
     /**
