@@ -52,7 +52,7 @@ class Rfc6455Transporter implements Transporter
         $opcode = $bytes['flags'] & self::OPCODE_MASK;
         $final = (bool) ($bytes['flags'] & self::FIN_MASK);
 
-        $mask = (bool) ($bytes['length'] & self::MASK_FLAG_MASK);
+        $masked = (bool) ($bytes['length'] & self::MASK_FLAG_MASK);
 
         $size = $bytes['length'] & self::LENGTH_MASK;
 
@@ -80,28 +80,21 @@ class Rfc6455Transporter implements Transporter
             throw new PolicyException('Frame size exceeded max allowed size.');
         }
 
-        if ($mask) {
-            $buffer = (yield Stream\readTo($socket, 4, $timeout));
-
-            $mask = [];
-            for ($i = 0; $i < 4; ++$i) {
-                $mask[] = ord($buffer[$i]);
-            }
+        if ($masked) {
+            $mask = (yield Stream\readTo($socket, 4, $timeout));
         }
 
         $buffer = (yield Stream\readTo($socket, $size, $timeout));
 
-        if ($mask) {
-            for ($i = 0; $i < $size; ++$i) {
-                $buffer[$i] = chr(ord($buffer[$i]) ^ $mask[$i & 0x3]); // $i % 4
-            }
+        if ($masked) {
+            $buffer ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
         }
 
         if (($opcode === self::OPCODE_TEXT || $opcode === self::OPCODE_BINARY) && !$final) {
             throw new FrameException('Non-text or non-binary frame must be final.');
         }
 
-        yield new Frame($opcode, $buffer, (bool) $mask, $final);
+        yield new Frame($opcode, $buffer, $masked, $final);
     }
 
     /**
@@ -141,55 +134,15 @@ class Rfc6455Transporter implements Transporter
             $buffer .= pack('NN', $size >> 32, $size);
         }
 
+        $data = $frame->getData();
+
         if ($frame->isMasked()) {
-            $mask = $this->generateMask();
-
-            foreach ($mask as $value) {
-                $buffer .= chr($value);
-            }
-
-            $written = (yield $socket->write($buffer, $timeout));
-
-            $remaining = $size;
-            $position = 0;
-
-            $data = $frame->getData();
-
-            while (0 < $remaining) {
-                $buffer = str_repeat("\0", min($remaining, self::CHUNK_SIZE));
-
-                for ($i = 0; $position < $remaining && $i < self::CHUNK_SIZE; ++$i, ++$position) {
-                    $buffer[$i] = chr(ord($data[$position]) ^ $mask[$position & 0x3]); // $position % 4
-                }
-
-                $remaining -= $i;
-
-                $written += (yield $socket->write($buffer, $timeout));
-            }
-
-            yield $written;
-            return;
+            $mask = random_bytes(self::MASK_LENGTH);
+            $buffer .= $mask;
+            $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
         }
 
         $written = (yield $socket->write($buffer, $timeout));
-        yield $written + (yield $socket->write($frame->getData(), $timeout));
-    }
-
-    /**
-     * Array of pseudo-random bytes to use for masking data.
-     *
-     * @return  int[]
-     */
-    private function generateMask()
-    {
-        $bytes = random_bytes(self::MASK_LENGTH);
-
-        $mask = [];
-
-        for ($i = 0; $i < self::MASK_LENGTH; ++$i) {
-            $mask[$i] = ord($bytes[$i]);
-        }
-
-        return $mask;
+        yield $written + (yield $socket->write($data, $timeout));
     }
 }
