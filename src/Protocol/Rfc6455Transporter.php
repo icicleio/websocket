@@ -3,6 +3,7 @@ namespace Icicle\WebSocket\Protocol;
 
 use Icicle\Socket\Socket;
 use Icicle\Stream;
+use Icicle\Stream\Structures\Buffer;
 use Icicle\WebSocket\Exception\FrameException;
 use Icicle\WebSocket\Exception\PolicyException;
 
@@ -33,68 +34,88 @@ class Rfc6455Transporter implements Transporter
     const TWO_BYTE_MAX_LENGTH =     0xffff;
 
     const MASK_LENGTH =         4;
-    const CHUNK_SIZE =          0x1000;
 
     /**
      * {@inheritdoc}
      */
     public function read(Socket $socket, $maxSize, $timeout = 0)
     {
-        $buffer = (yield Stream\readTo($socket, 2, $timeout));
+        $buffer = new Buffer();
 
-        $bytes = unpack('Cflags/Clength', $buffer);
+        try {
+            do {
+                $buffer->push(yield $socket->read(0, null, $timeout));
+            } while ($buffer->getLength() < 2);
 
-        // This will need to be changed to support compression.
-        if (($bytes['flags'] & self::RSV_MASK) !== 0) {
-            throw new FrameException('Unsupported extension.');
-        }
+            $bytes = unpack('Cflags/Clength', $buffer->shift(2));
 
-        $opcode = $bytes['flags'] & self::OPCODE_MASK;
-        $final = (bool) ($bytes['flags'] & self::FIN_MASK);
-
-        $masked = (bool) ($bytes['length'] & self::MASK_FLAG_MASK);
-
-        $size = $bytes['length'] & self::LENGTH_MASK;
-
-        if ($size === self::TWO_BYTE_LENGTH_FLAG) {
-            $buffer = (yield Stream\readTo($socket, 2, $timeout));
-
-            $bytes = unpack('nlength', $buffer);
-            $size = $bytes['length'];
-
-            if ($size < self::TWO_BYTE_LENGTH_FLAG) {
-                throw new FrameException('Frame format error.');
+            // @todo This will need to be changed to support compression.
+            if (($bytes['flags'] & self::RSV_MASK) !== 0) {
+                throw new FrameException('Unsupported extension.');
             }
-        } elseif ($size === self::EIGHT_BYTE_LENGTH_FLAG) {
-            $buffer = (yield Stream\readTo($socket, 8, $timeout));
 
-            $bytes = unpack('Nhigh/Nlow', $buffer);
-            $size = ($bytes['high'] << 32) | $bytes['low'];
+            $opcode = $bytes['flags'] & self::OPCODE_MASK;
+            $final = (bool) ($bytes['flags'] & self::FIN_MASK);
 
-            if ($size < self::TWO_BYTE_MAX_LENGTH) {
-                throw new FrameException('Frame format error.');
+            $masked = (bool) ($bytes['length'] & self::MASK_FLAG_MASK);
+            $size = $bytes['length'] & self::LENGTH_MASK;
+
+            if ($size === self::TWO_BYTE_LENGTH_FLAG) {
+                while ($buffer->getLength() < 2) {
+                    $buffer->push(yield $socket->read(0, null, $timeout));
+                }
+
+                $bytes = unpack('nlength', $buffer->shift(2));
+                $size = $bytes['length'];
+
+                if ($size < self::TWO_BYTE_LENGTH_FLAG) {
+                    throw new FrameException('Frame format error.');
+                }
+            } elseif ($size === self::EIGHT_BYTE_LENGTH_FLAG) {
+                while ($buffer->getLength() < 8) {
+                    $buffer .= (yield $socket->read(0, null, $timeout));
+                }
+
+                $bytes = unpack('Nhigh/Nlow', $buffer->shift(8));
+                $size = ($bytes['high'] << 32) | $bytes['low'];
+
+                if ($size < self::TWO_BYTE_MAX_LENGTH) {
+                    throw new FrameException('Frame format error.');
+                }
+            }
+
+            if ($size > $maxSize) {
+                throw new PolicyException('Frame size exceeded max allowed size.');
+            }
+
+            if ($masked) {
+                while ($buffer->getLength() < self::MASK_LENGTH) {
+                    $buffer->push(yield $socket->read(0, null, $timeout));
+                }
+
+                $mask = $buffer->shift(self::MASK_LENGTH);
+            }
+
+            while ($buffer->getLength() < $size) {
+                $buffer->push(yield $socket->read(0, null, $timeout));
+            }
+
+            $data = $buffer->shift($size);
+
+            if ($masked) {
+                $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
+            }
+
+            if (($opcode === self::OPCODE_TEXT || $opcode === self::OPCODE_BINARY) && !$final) {
+                throw new FrameException('Non-text or non-binary frame must be final.');
+            }
+
+            yield new Frame($opcode, $data, $masked, $final);
+        } finally {
+            if (!$buffer->isEmpty()) {
+                $socket->unshift((string) $buffer);
             }
         }
-
-        if ($size > $maxSize) {
-            throw new PolicyException('Frame size exceeded max allowed size.');
-        }
-
-        if ($masked) {
-            $mask = (yield Stream\readTo($socket, 4, $timeout));
-        }
-
-        $buffer = (yield Stream\readTo($socket, $size, $timeout));
-
-        if ($masked) {
-            $buffer ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
-        }
-
-        if (($opcode === self::OPCODE_TEXT || $opcode === self::OPCODE_BINARY) && !$final) {
-            throw new FrameException('Non-text or non-binary frame must be final.');
-        }
-
-        yield new Frame($opcode, $buffer, $masked, $final);
     }
 
     /**
@@ -121,8 +142,9 @@ class Rfc6455Transporter implements Transporter
         }
 
         $byte = $length;
+        $masked = $frame->isMasked();
 
-        if ($frame->isMasked()) {
+        if ($masked) {
             $byte |= self::MASK_FLAG_MASK;
         }
 
@@ -136,7 +158,7 @@ class Rfc6455Transporter implements Transporter
 
         $data = $frame->getData();
 
-        if ($frame->isMasked()) {
+        if ($masked) {
             $mask = random_bytes(self::MASK_LENGTH);
             $buffer .= $mask;
             $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
