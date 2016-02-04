@@ -17,7 +17,7 @@ class EchoApplication implements Application
 
     public function onHandshake(Response $response, Request $request, Socket $socket)
     {
-        yield $response;
+        return $response;
     }
 
     public function onConnection(Connection $connection)

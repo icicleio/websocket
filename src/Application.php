@@ -23,15 +23,11 @@ interface Application
      * set or no other validation is needed. This method can also reject the request by resolving with another response
      * object entirely.
      *
-     * @coroutine
-     *
      * @param \Icicle\Http\Message\Response $response
      * @param \Icicle\Http\Message\Request $request
      * @param \Icicle\Socket\Socket $socket
      *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Response
+     * @return \Generator|\Icicle\Awaitable\Awaitable|\Icicle\Http\Message\Response
      */
     public function onHandshake(Response $response, Request $request, Socket $socket);
 
@@ -43,9 +39,7 @@ interface Application
      *
      * @param \Icicle\WebSocket\Connection $connection
      *
-     * @return \Generator
-     *
-     * @resolve null
+     * @return \Generator|\Icicle\Awaitable\Awaitable|null
      */
     public function onConnection(Connection $connection);
 }

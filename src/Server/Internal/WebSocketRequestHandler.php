@@ -54,14 +54,7 @@ class WebSocketRequestHandler implements RequestHandler
     }
 
     /**
-     * @coroutine
-     *
-     * @param int $code
-     * @param \Icicle\Socket\Socket $socket
-     *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Response
+     * {@inheritdoc}
      */
     public function onError($code, Socket $socket)
     {
