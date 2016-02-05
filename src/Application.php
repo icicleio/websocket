@@ -3,7 +3,6 @@ namespace Icicle\WebSocket;
 
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
-use Icicle\Socket\Socket;
 
 interface Application
 {
@@ -25,11 +24,11 @@ interface Application
      *
      * @param \Icicle\Http\Message\Response $response
      * @param \Icicle\Http\Message\Request $request
-     * @param \Icicle\Socket\Socket $socket
+     * @param \Icicle\WebSocket\Connection $connection
      *
      * @return \Generator|\Icicle\Awaitable\Awaitable|\Icicle\Http\Message\Response
      */
-    public function onHandshake(Response $response, Request $request, Socket $socket);
+    public function onHandshake(Response $response, Request $request, Connection $connection);
 
     /**
      * This method is called when a WebSocket connection is established to the WebSocket server. This method should

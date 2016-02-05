@@ -16,19 +16,6 @@ class Rfc6455Protocol implements Protocol
     const DEFAULT_KEY_LENGTH = 12;
 
     /**
-     * @var \Icicle\WebSocket\Protocol\Transporter
-     */
-    private $transporter;
-
-    /**
-     * @param \Icicle\WebSocket\Protocol\Transporter|null $transporter
-     */
-    public function __construct(Transporter $transporter = null)
-    {
-        $this->transporter = $transporter ?: new Rfc6455Transporter();
-    }
-
-    /**
      * {@inheritdoc}
      */
     public function getVersionNumber()
@@ -88,7 +75,7 @@ class Rfc6455Protocol implements Protocol
         }
         */
 
-        $connection = new Rfc6455Connection($this->transporter, $socket, $request, false, $protocol, []);
+        $connection = new Rfc6455Connection(new Rfc6455Transporter($socket, false), $request, $protocol, []);
 
         yield new WebSocketResponse($headers, $application, $connection);
     }

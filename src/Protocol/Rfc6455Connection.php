@@ -24,16 +24,6 @@ class Rfc6455Connection implements Connection
     const DEFAULT_MAX_FRAME_COUNT = 128;
 
     /**
-     * @var \Icicle\Socket\Socket
-     */
-    private $socket;
-
-    /**
-     * @var bool
-     */
-    private $mask;
-
-    /**
      * @var \Icicle\WebSocket\Protocol\Transporter
      */
     private $transporter;
@@ -79,9 +69,7 @@ class Rfc6455Connection implements Connection
      */
     public function __construct(
         Transporter $transporter,
-        Socket $socket,
         HttpMessage $message,
-        $mask,
         $subProtocol,
         array $extensions,
         array $options = []
@@ -101,11 +89,9 @@ class Rfc6455Connection implements Connection
             : self::DEFAULT_MAX_FRAME_COUNT;
 
         $this->transporter = $transporter;
-        $this->socket = $socket;
         $this->message = $message;
         $this->subProtocol = $subProtocol;
         $this->extensions = $extensions;
-        $this->mask = (bool) $mask;
 
         $this->observable = $this->createObservable($interval, $maxMessageSize, $maxFrameCount);
     }
@@ -115,7 +101,7 @@ class Rfc6455Connection implements Connection
      */
     public function isOpen()
     {
-        return $this->socket->isOpen() && !$this->closed;
+        return $this->transporter->isOpen() && !$this->closed;
     }
 
     /**
@@ -171,28 +157,22 @@ class Rfc6455Connection implements Connection
                     if (null === $pong) {
                         $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
                             yield $this->close(Close::VIOLATION);
-                            $this->socket->close();
+                            $this->transporter->close();
                         }));
                         $pong->unreference();
                     } else {
                         $pong->again();
                     }
                 } catch (\Exception $exception) {
-                    $this->socket->close();
+                    $this->transporter->close();
                 }
             }));
             $ping->unreference();
 
             try {
-                while ($this->socket->isReadable()) {
+                while ($this->transporter->isOpen()) {
                     /** @var \Icicle\WebSocket\Protocol\Frame $frame */
-                    $frame = (yield $this->transporter->read($this->socket, $maxSize - $size));
-
-                    if ($frame->isMasked() === $this->mask) {
-                        throw new ProtocolException(
-                            sprintf('Received %s frame.', $frame->isMasked() ? 'masked' : 'unmasked')
-                        );
-                    }
+                    $frame = (yield $this->transporter->read($maxSize - $size));
 
                     $ping->again();
 
@@ -322,10 +302,10 @@ class Rfc6455Connection implements Connection
      */
     public function send(Message $message)
     {
-        $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData(), $this->mask);
+        $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData());
 
         try {
-            yield $this->transporter->send($frame, $this->socket, $this->timeout);
+            yield $this->transporter->send($frame, $this->timeout);
         } catch (\Exception $exception) {
             yield 0;
         }
@@ -338,10 +318,10 @@ class Rfc6455Connection implements Connection
     {
         $this->closed = true;
 
-        $frame = new Frame(Frame::CLOSE, pack('S', (int) $code) . $data, $this->mask);
+        $frame = new Frame(Frame::CLOSE, pack('S', (int) $code) . $data);
 
         try {
-            yield $this->transporter->send($frame, $this->socket, $this->timeout);
+            yield $this->transporter->send($frame, $this->timeout);
         } catch (\Exception $exception) {
             yield 0;
         }
@@ -360,8 +340,8 @@ class Rfc6455Connection implements Connection
      */
     protected function ping($data = '')
     {
-        $frame = new Frame(Frame::PING, $data, $this->mask);
-        yield $this->transporter->send($frame, $this->socket, $this->timeout);
+        $frame = new Frame(Frame::PING, $data);
+        yield $this->transporter->send($frame, $this->timeout);
     }
 
     /**
@@ -377,8 +357,8 @@ class Rfc6455Connection implements Connection
      */
     protected function pong($data = '')
     {
-        $frame = new Frame(Frame::PONG, $data, $this->mask);
-        yield $this->transporter->send($frame, $this->socket, $this->timeout);
+        $frame = new Frame(Frame::PONG, $data);
+        yield $this->transporter->send($frame, $this->timeout);
     }
 
     /**
@@ -386,7 +366,7 @@ class Rfc6455Connection implements Connection
      */
     public function getLocalAddress()
     {
-        return $this->socket->getLocalAddress();
+        return $this->transporter->getLocalAddress();
     }
 
     /**
@@ -394,7 +374,7 @@ class Rfc6455Connection implements Connection
      */
     public function getLocalPort()
     {
-        return $this->socket->getLocalPort();
+        return $this->transporter->getLocalPort();
     }
 
     /**
@@ -402,7 +382,7 @@ class Rfc6455Connection implements Connection
      */
     public function getRemoteAddress()
     {
-        return $this->socket->getRemoteAddress();
+        return $this->transporter->getRemoteAddress();
     }
 
     /**
@@ -410,7 +390,7 @@ class Rfc6455Connection implements Connection
      */
     public function getRemotePort()
     {
-        return $this->socket->getRemotePort();
+        return $this->transporter->getRemotePort();
     }
 
     /**
@@ -418,6 +398,6 @@ class Rfc6455Connection implements Connection
      */
     public function isCryptoEnabled()
     {
-        return $this->socket->isCryptoEnabled();
+        return $this->transporter->isCryptoEnabled();
     }
 }

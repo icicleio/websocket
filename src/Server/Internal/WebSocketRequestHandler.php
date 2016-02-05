@@ -5,6 +5,7 @@ use Icicle\Http\Message\Request;
 use Icicle\Http\Server\RequestHandler;
 use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
+use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
 use Icicle\WebSocket\Protocol\ProtocolMatcher;
 
 class WebSocketRequestHandler implements RequestHandler
@@ -50,7 +51,12 @@ class WebSocketRequestHandler implements RequestHandler
 
         $response = (yield $this->matcher->createResponse($application, $request, $socket));
 
-        yield $application->onHandshake($response, $request, $socket);
+        if (!$response instanceof WebSocketResponse) {
+            yield $response;
+            return;
+        }
+
+        yield $application->onHandshake($response, $request, $response->getConnection());
     }
 
     /**

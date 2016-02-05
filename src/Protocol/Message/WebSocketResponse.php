@@ -13,11 +13,6 @@ class WebSocketResponse extends BasicResponse
     private $application;
 
     /**
-     * @var \Icicle\WebSocket\Protocol\Protocol
-     */
-    private $protocol;
-
-    /**
      * @var \Icicle\WebSocket\Connection
      */
     private $connection;
@@ -32,7 +27,7 @@ class WebSocketResponse extends BasicResponse
         Application $application,
         Connection $connection
     ) {
-        parent::__construct(101, $headers);
+        parent::__construct(101, $headers, null, 'Switching Protocols', '1.1');
 
         $this->application = $application;
         $this->connection = $connection;

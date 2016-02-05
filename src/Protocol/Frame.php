@@ -30,11 +30,6 @@ class Frame
     private $final = true;
 
     /**
-     * @var bool
-     */
-    private $mask = false;
-
-    /**
      * @param int $opcode
      * @param string $data
      * @param bool $mask
@@ -42,7 +37,7 @@ class Frame
      *
      * @throws \Icicle\WebSocket\Exception\FrameException
      */
-    public function __construct($opcode, $data = '', $mask = false, $final = true)
+    public function __construct($opcode, $data = '', $final = true)
     {
         switch ($opcode) {
             case self::CONTINUATION:
@@ -59,7 +54,6 @@ class Frame
         }
 
         $this->data = (string) $data;
-        $this->mask = (bool) $mask;
         $this->final = (bool) $final;
     }
 
@@ -77,14 +71,6 @@ class Frame
     public function getSize()
     {
         return strlen($this->data);
-    }
-
-    /**
-     * @return  bool
-     */
-    public function isMasked()
-    {
-        return $this->mask;
     }
 
     /**

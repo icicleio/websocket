@@ -36,15 +36,35 @@ class Rfc6455Transporter implements Transporter
     const MASK_LENGTH =         4;
 
     /**
+     * @var \Icicle\Socket\Socket
+     */
+    private $socket;
+
+    /**
+     * @var bool
+     */
+    private $masked;
+
+    /**
+     * @param \Icicle\Socket\Socket $socket
+     * @param bool $masked True if received frames should be masked
+     */
+    public function __construct(Socket $socket, $masked)
+    {
+        $this->socket = $socket;
+        $this->masked = (bool) $masked;
+    }
+
+    /**
      * {@inheritdoc}
      */
-    public function read(Socket $socket, $maxSize, $timeout = 0)
+    public function read($maxSize, $timeout = 0)
     {
         $buffer = new Buffer();
 
         try {
             do {
-                $buffer->push(yield $socket->read(0, null, $timeout));
+                $buffer->push(yield $this->socket->read(0, null, $timeout));
             } while ($buffer->getLength() < 2);
 
             $bytes = unpack('Cflags/Clength', $buffer->shift(2));
@@ -60,9 +80,15 @@ class Rfc6455Transporter implements Transporter
             $masked = (bool) ($bytes['length'] & self::MASK_FLAG_MASK);
             $size = $bytes['length'] & self::LENGTH_MASK;
 
+            if ($masked === $this->masked) {
+                throw new FrameException(
+                    sprintf('Received %s frame.', $masked ? 'masked' : 'unmasked')
+                );
+            }
+
             if ($size === self::TWO_BYTE_LENGTH_FLAG) {
                 while ($buffer->getLength() < 2) {
-                    $buffer->push(yield $socket->read(0, null, $timeout));
+                    $buffer->push(yield $this->socket->read(0, null, $timeout));
                 }
 
                 $bytes = unpack('nlength', $buffer->shift(2));
@@ -73,7 +99,7 @@ class Rfc6455Transporter implements Transporter
                 }
             } elseif ($size === self::EIGHT_BYTE_LENGTH_FLAG) {
                 while ($buffer->getLength() < 8) {
-                    $buffer .= (yield $socket->read(0, null, $timeout));
+                    $buffer .= (yield $this->socket->read(0, null, $timeout));
                 }
 
                 $bytes = unpack('Nhigh/Nlow', $buffer->shift(8));
@@ -90,14 +116,14 @@ class Rfc6455Transporter implements Transporter
 
             if ($masked) {
                 while ($buffer->getLength() < self::MASK_LENGTH) {
-                    $buffer->push(yield $socket->read(0, null, $timeout));
+                    $buffer->push(yield $this->socket->read(0, null, $timeout));
                 }
 
                 $mask = $buffer->shift(self::MASK_LENGTH);
             }
 
             while ($buffer->getLength() < $size) {
-                $buffer->push(yield $socket->read(0, null, $timeout));
+                $buffer->push(yield $this->socket->read(0, null, $timeout));
             }
 
             $data = $buffer->shift($size);
@@ -113,7 +139,7 @@ class Rfc6455Transporter implements Transporter
             yield new Frame($opcode, $data, $masked, $final);
         } finally {
             if (!$buffer->isEmpty()) {
-                $socket->unshift((string) $buffer);
+                $this->socket->unshift((string) $buffer);
             }
         }
     }
@@ -121,7 +147,7 @@ class Rfc6455Transporter implements Transporter
     /**
      * {@inheritdoc}
      */
-    public function send(Frame $frame, Socket $socket, $timeout = 0)
+    public function send(Frame $frame, $timeout = 0)
     {
         $byte = $frame->getType();
 
@@ -142,9 +168,8 @@ class Rfc6455Transporter implements Transporter
         }
 
         $byte = $length;
-        $masked = $frame->isMasked();
 
-        if ($masked) {
+        if ($this->masked) {
             $byte |= self::MASK_FLAG_MASK;
         }
 
@@ -158,13 +183,69 @@ class Rfc6455Transporter implements Transporter
 
         $data = $frame->getData();
 
-        if ($masked) {
+        if ($this->masked) {
             $mask = random_bytes(self::MASK_LENGTH);
             $buffer .= $mask;
             $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
         }
 
-        $written = (yield $socket->write($buffer, $timeout));
-        yield $written + (yield $socket->write($data, $timeout));
+        $written = (yield $this->socket->write($buffer, $timeout));
+        yield $written + (yield $this->socket->write($data, $timeout));
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isOpen()
+    {
+        return $this->socket->isOpen();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function close()
+    {
+        return $this->socket->close();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getLocalAddress()
+    {
+        return $this->socket->getLocalAddress();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getLocalPort()
+    {
+        return $this->socket->getLocalPort();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getRemoteAddress()
+    {
+        return $this->socket->getRemoteAddress();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getRemotePort()
+    {
+        return $this->socket->getRemotePort();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isCryptoEnabled()
+    {
+        return $this->socket->isCryptoEnabled();
     }
 }
