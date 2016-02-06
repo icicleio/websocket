@@ -3,7 +3,6 @@ namespace Icicle\Examples\WebSocket;
 
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
-use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Message;

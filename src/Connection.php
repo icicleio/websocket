@@ -44,13 +44,16 @@ interface Connection
     /**
      * @coroutine
      *
-     * @param \Icicle\WebSocket\Message $message
+     * @param string|\Icicle\WebSocket\Message $message Can provide a Message object, a string, or anything that can
+     *     successfully be cast to a string.
+     * @param bool $binary True if the message should be treated as binary data, false if it should be treated as an
+     *     UTF-8 encoded string. This parameter is ignored if the first argument is a Message object.
      *
      * @return \Generator
      *
      * @resolve int
      */
-    public function send(Message $message);
+    public function send($message, $binary = false);
 
     /**
      * @coroutine

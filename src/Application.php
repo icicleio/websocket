@@ -10,7 +10,7 @@ interface Application
      * This method should select a sub protocol to use from an array of protocols provided in the request. This method
      * is only invoked if a list of sub protocols is provided in the request.
      *
-     * @param array $protocols
+     * @param string[] $protocols
      *
      * @return string
      */

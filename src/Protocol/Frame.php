@@ -32,7 +32,6 @@ class Frame
     /**
      * @param int $opcode
      * @param string $data
-     * @param bool $mask
      * @param bool $final
      *
      * @throws \Icicle\WebSocket\Exception\FrameException

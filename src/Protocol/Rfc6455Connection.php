@@ -6,7 +6,6 @@ use Icicle\Http\Message\Message as HttpMessage;
 use Icicle\Observable\Emitter;
 use Icicle\Loop;
 use Icicle\Socket\Exception\Exception as SocketException;
-use Icicle\Socket\Socket;
 use Icicle\Stream\Exception\Exception as StreamException;
 use Icicle\WebSocket\Close;
 use Icicle\WebSocket\Connection;
@@ -60,9 +59,7 @@ class Rfc6455Connection implements Connection
 
     /**
      * @param \Icicle\WebSocket\Protocol\Transporter $transporter
-     * @param \Icicle\Socket\Socket $socket
      * @param \Icicle\Http\Message\Message $message
-     * @param bool $mask
      * @param string $subProtocol
      * @param string[] $extensions
      * @param mixed[] $options
@@ -300,9 +297,13 @@ class Rfc6455Connection implements Connection
     /**
      * {@inheritdoc}
      */
-    public function send(Message $message)
+    public function send($message, $binary = false)
     {
-        $frame = new Frame($message->isBinary() ? Frame::BINARY : Frame::TEXT, $message->getData());
+        if ($message instanceof Message) {
+            $binary = $message->isBinary();
+        }
+
+        $frame = new Frame($binary ? Frame::BINARY : Frame::TEXT, (string) $message);
 
         try {
             yield $this->transporter->send($frame, $this->timeout);
