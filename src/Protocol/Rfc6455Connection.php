@@ -14,6 +14,8 @@ use Icicle\WebSocket\Exception\DataException;
 use Icicle\WebSocket\Exception\PolicyException;
 use Icicle\WebSocket\Exception\ProtocolException;
 use Icicle\WebSocket\Message;
+use Icicle\WebSocket\Protocol\Rfc6455Frame as Frame;
+use Icicle\WebSocket\Protocol\Rfc6455Transporter as Transporter;
 
 class Rfc6455Connection implements Connection
 {
@@ -23,7 +25,7 @@ class Rfc6455Connection implements Connection
     const DEFAULT_MAX_FRAME_COUNT = 128;
 
     /**
-     * @var \Icicle\WebSocket\Protocol\Transporter
+     * @var \Icicle\WebSocket\Protocol\Rfc6455Transporter
      */
     private $transporter;
 
@@ -58,7 +60,7 @@ class Rfc6455Connection implements Connection
     private $timeout = self::DEFAULT_TIMEOUT;
 
     /**
-     * @param \Icicle\WebSocket\Protocol\Transporter $transporter
+     * @param \Icicle\WebSocket\Protocol\Rfc6455Transporter $transporter
      * @param \Icicle\Http\Message\Message $message
      * @param string $subProtocol
      * @param string[] $extensions
@@ -143,7 +145,7 @@ class Rfc6455Connection implements Connection
     private function createObservable($interval, $maxSize, $maxFrames)
     {
         return new Emitter(function (callable $emit) use ($interval, $maxSize, $maxFrames) {
-            /** @var \Icicle\WebSocket\Protocol\Frame[] $frames */
+            /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame[] $frames */
             $frames = [];
             $size = 0;
 
@@ -168,7 +170,7 @@ class Rfc6455Connection implements Connection
 
             try {
                 while ($this->transporter->isOpen()) {
-                    /** @var \Icicle\WebSocket\Protocol\Frame $frame */
+                    /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame $frame */
                     $frame = (yield $this->transporter->read($maxSize - $size));
 
                     $ping->again();

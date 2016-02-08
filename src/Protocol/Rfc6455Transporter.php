@@ -6,8 +6,9 @@ use Icicle\Stream;
 use Icicle\Stream\Structures\Buffer;
 use Icicle\WebSocket\Exception\FrameException;
 use Icicle\WebSocket\Exception\PolicyException;
+use Icicle\WebSocket\Protocol\Rfc6455Frame as Frame;
 
-class Rfc6455Transporter implements Transporter
+class Rfc6455Transporter
 {
     const BIT_FIN =             0x80;
     const BIT_RSV1 =            0x40;
@@ -56,7 +57,16 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @coroutine
+     *
+     * @param int $maxSize Max frame size.
+     * @param float|int $timeout
+     *
+     * @return \Generator
+     *
+     * @resolve \Icicle\WebSocket\Protocol\Rfc6455Frame
+     *
+     * @throws \Icicle\WebSocket\Exception\FrameException
      */
     public function read($maxSize, $timeout = 0)
     {
@@ -69,11 +79,7 @@ class Rfc6455Transporter implements Transporter
 
             $bytes = unpack('Cflags/Clength', $buffer->shift(2));
 
-            // @todo This will need to be changed to support compression.
-            if (($bytes['flags'] & self::RSV_MASK) !== 0) {
-                throw new FrameException('Unsupported extension.');
-            }
-
+            $rsv = $bytes['flags'] & self::RSV_MASK;
             $opcode = $bytes['flags'] & self::OPCODE_MASK;
             $final = (bool) ($bytes['flags'] & self::FIN_MASK);
 
@@ -132,11 +138,7 @@ class Rfc6455Transporter implements Transporter
                 $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
             }
 
-            if (($opcode === self::OPCODE_TEXT || $opcode === self::OPCODE_BINARY) && !$final) {
-                throw new FrameException('Non-text or non-binary frame must be final.');
-            }
-
-            yield new Frame($opcode, $data, $masked, $final);
+            yield new Frame($opcode, $data, $rsv, $final);
         } finally {
             if (!$buffer->isEmpty()) {
                 $this->socket->unshift((string) $buffer);
@@ -145,15 +147,24 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @coroutine
+     *
+     * @param \Icicle\WebSocket\Protocol\Rfc6455Frame $frame
+     * @param float|int $timeout
+     *
+     * @return \Generator
+     *
+     * @resolve int Number of bytes sent on the socket.
      */
     public function send(Frame $frame, $timeout = 0)
     {
         $byte = $frame->getType();
 
         if ($frame->isFinal()) {
-            $byte = self::BIT_FIN | $byte;
+            $byte |= self::BIT_FIN;
         }
+
+        $byte |= $frame->getRsv();
 
         $buffer = chr($byte);
 
@@ -194,7 +205,9 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * Returns true if the underlying socket is open, false if it has been closed.
+     *
+     * @return bool
      */
     public function isOpen()
     {
@@ -202,7 +215,7 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * Closes the underlying transport socket.
      */
     public function close()
     {
@@ -210,7 +223,7 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @return string
      */
     public function getLocalAddress()
     {
@@ -218,7 +231,7 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @return int
      */
     public function getLocalPort()
     {
@@ -226,7 +239,7 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @return string
      */
     public function getRemoteAddress()
     {
@@ -234,7 +247,7 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @return int
      */
     public function getRemotePort()
     {
@@ -242,7 +255,7 @@ class Rfc6455Transporter implements Transporter
     }
 
     /**
-     * {@inheritdoc}
+     * @return bool
      */
     public function isCryptoEnabled()
     {

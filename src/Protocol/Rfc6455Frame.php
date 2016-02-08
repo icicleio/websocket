@@ -3,7 +3,7 @@ namespace Icicle\WebSocket\Protocol;
 
 use Icicle\WebSocket\Exception\FrameException;
 
-class Frame
+class Rfc6455Frame
 {
     const CONTINUATION = 0x0;
     const TEXT =         0x1;
@@ -27,33 +27,45 @@ class Frame
     /**
      * @var bool
      */
-    private $final = true;
+    private $final;
+
+    /**
+     * @var int
+     */
+    private $rsv;
 
     /**
      * @param int $opcode
      * @param string $data
+     * @param int $rsv
      * @param bool $final
      *
      * @throws \Icicle\WebSocket\Exception\FrameException
      */
-    public function __construct($opcode, $data = '', $final = true)
+    public function __construct($opcode, $data = '', $rsv = 0, $final = true)
     {
+        $this->data = (string) $data;
+        $this->final = (bool) $final;
+        $this->rsv = (int) $rsv;
+
         switch ($opcode) {
-            case self::CONTINUATION:
-            case self::TEXT:
             case self::BINARY:
             case self::CLOSE:
             case self::PING:
             case self::PONG:
+                if (!$this->final) {
+                    throw new FrameException('Non-text or non-binary frame must be final.');
+                }
+                // No break.
+
+            case self::CONTINUATION:
+            case self::TEXT:
                 $this->opcode = $opcode;
                 break;
 
             default:
                 throw new FrameException('Invalid opcode.');
         }
-
-        $this->data = (string) $data;
-        $this->final = (bool) $final;
     }
 
     /**
@@ -86,5 +98,37 @@ class Frame
     public function isFinal()
     {
         return $this->final;
+    }
+
+    /**
+     * @return int
+     */
+    public function getRsv()
+    {
+        return $this->rsv;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getRsv1()
+    {
+        return (bool) $this->rsv & 4;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getRsv2()
+    {
+        return (bool) $this->rsv & 2;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getRsv3()
+    {
+        return (bool) $this->rsv & 1;
     }
 }
