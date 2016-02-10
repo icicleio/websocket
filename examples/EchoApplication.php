@@ -3,25 +3,29 @@ namespace Icicle\Examples\WebSocket;
 
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
+use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Connection;
-use Icicle\WebSocket\Message;
 
 class EchoApplication implements Application
 {
-    public function selectSubProtocol(array $protocols)
+    public function onHandshake(Response $response, Request $request, Socket $socket)
     {
-        return '';
+        // This method provides an opportunity to inspect the Request and Response before a connection is accepted.
+        // Cookies may be set and returned on a new Response object, e.g.: return $response->withCookie(...);
+
+        return $response; // No modification needed to the response, so the passed Response object is simply returned.
     }
 
-    public function onHandshake(Response $response, Request $request, Connection $connection)
+    public function onConnection(Connection $connection, Response $response, Request $request)
     {
-        return $response;
-    }
+        // The Response and Request objects used to initiate the connection are provided for informational purposes.
+        // This method will primarily interact with the Connection object.
 
-    public function onConnection(Connection $connection)
-    {
-        yield $connection->send(new Message('Connected to echo WebSocket server powered by Icicle.'));
+        yield $connection->send('Connected to echo WebSocket server powered by Icicle.');
+
+        // Messages are read through an Observable that represents an asynchronous set. There are a variety of ways
+        // to use this asynchronous set, including an asynchronous iterator as shown in the example below.
 
         $iterator = $connection->read()->getIterator();
 
@@ -37,8 +41,8 @@ class EchoApplication implements Application
         }
 
         /** @var \Icicle\WebSocket\Close $close */
-        $close = $iterator->getReturn();
+        $close = $iterator->getReturn(); // Only needs to be called if the close reason is needed.
 
-        printf("Close code: %d\n", $close->getCode());
+        printf("Close code: %d; Data: %s\n", $close->getCode(), $close->getData());
     }
 }

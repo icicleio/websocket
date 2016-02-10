@@ -8,6 +8,7 @@ use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
+use Icicle\WebSocket\SubProtocol;
 
 class Rfc6455Protocol implements Protocol
 {
@@ -53,7 +54,7 @@ class Rfc6455Protocol implements Protocol
             'Sec-WebSocket-Accept' => $this->responseKey(trim($request->getHeader('Sec-WebSocket-Key'))),
         ];
 
-        if ($request->hasHeader('Sec-WebSocket-Protocol')) {
+        if ($application instanceof SubProtocol) {
             $protocol = $application->selectSubProtocol(
                 array_map('trim', explode(',', $request->getHeader('Sec-WebSocket-Protocol')))
             );
@@ -75,7 +76,7 @@ class Rfc6455Protocol implements Protocol
         }
         */
 
-        $connection = new Rfc6455Connection(new Rfc6455Transporter($socket, false), $request, $protocol, []);
+        $connection = new Rfc6455Connection(new Rfc6455Transporter($socket, false), $protocol, []);
 
         yield new WebSocketResponse($headers, $application, $connection);
     }

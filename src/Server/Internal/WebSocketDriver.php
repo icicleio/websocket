@@ -22,7 +22,7 @@ class WebSocketDriver extends Http1Driver
             $application = $response->getApplication();
             $connection = $response->getConnection();
 
-            yield $application->onConnection($connection);
+            yield $application->onConnection($connection, $response, $request);
         }
 
         yield $written;

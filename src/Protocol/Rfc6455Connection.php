@@ -2,7 +2,6 @@
 namespace Icicle\WebSocket\Protocol;
 
 use Icicle\Coroutine;
-use Icicle\Http\Message\Message as HttpMessage;
 use Icicle\Observable\Emitter;
 use Icicle\Loop;
 use Icicle\Socket\Exception\Exception as SocketException;
@@ -28,11 +27,6 @@ class Rfc6455Connection implements Connection
      * @var \Icicle\WebSocket\Protocol\Rfc6455Transporter
      */
     private $transporter;
-
-    /**
-     * @var \Icicle\Http\Message\Message
-     */
-    private $message;
 
     /**
      * @var string
@@ -61,14 +55,12 @@ class Rfc6455Connection implements Connection
 
     /**
      * @param \Icicle\WebSocket\Protocol\Rfc6455Transporter $transporter
-     * @param \Icicle\Http\Message\Message $message
      * @param string $subProtocol
      * @param string[] $extensions
      * @param mixed[] $options
      */
     public function __construct(
         Transporter $transporter,
-        HttpMessage $message,
         $subProtocol,
         array $extensions,
         array $options = []
@@ -88,7 +80,6 @@ class Rfc6455Connection implements Connection
             : self::DEFAULT_MAX_FRAME_COUNT;
 
         $this->transporter = $transporter;
-        $this->message = $message;
         $this->subProtocol = $subProtocol;
         $this->extensions = $extensions;
 
@@ -101,14 +92,6 @@ class Rfc6455Connection implements Connection
     public function isOpen()
     {
         return $this->transporter->isOpen() && !$this->closed;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getMessage()
-    {
-        return $this->message;
     }
 
     /**
@@ -285,7 +268,7 @@ class Rfc6455Connection implements Connection
             }
 
             if (!isset($close)) {
-                $close = new Close(Close::ABNORMAL);
+                $close = new Close(Close::ABNORMAL, 'Peer unexpectedly disconnected.');
             }
 
             if ($this->isOpen()) {

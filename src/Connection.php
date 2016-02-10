@@ -9,13 +9,6 @@ interface Connection
     public function isOpen();
 
     /**
-     * HTTP request (server) or response (client) object received to create the connection.
-     *
-     * @return \Icicle\Http\Message\Message
-     */
-    public function getMessage();
-
-    /**
      * Returns the name of any sub protocol to be used on the connection.
      *
      * @return string
