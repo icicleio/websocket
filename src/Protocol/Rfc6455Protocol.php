@@ -86,6 +86,18 @@ class Rfc6455Protocol implements Protocol
      */
     public function validateResponse(Request $request, Response $response)
     {
+        if (Response::SWITCHING_PROTOCOLS !== $response->getStatusCode()) {
+            return false;
+        }
+
+        if ('upgrade' !== strtolower($response->getHeader('Connection'))) {
+            return false;
+        }
+
+        if ('websocket' !== strtolower($response->getHeader('Upgrade'))) {
+            return false;
+        }
+
         $key = $request->getHeader('Sec-WebSocket-Key');
 
         if (!$response->hasHeader('Sec-WebSocket-Accept')) {
