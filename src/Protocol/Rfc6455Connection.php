@@ -171,7 +171,7 @@ class Rfc6455Connection implements Connection
                                 return;
                             }
 
-                            $bytes = unpack('Scode', substr($data, 0, 2));
+                            $bytes = unpack('ncode', substr($data, 0, 2));
 
                             $data = (string) substr($data, 2);
 
@@ -304,7 +304,7 @@ class Rfc6455Connection implements Connection
     {
         $this->closed = true;
 
-        $frame = new Frame(Frame::CLOSE, pack('S', (int) $code) . $data);
+        $frame = new Frame(Frame::CLOSE, pack('n', (int) $code) . $data);
 
         try {
             yield $this->transporter->send($frame, $this->timeout);
