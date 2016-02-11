@@ -1,0 +1,62 @@
+
+- data:
+    - "8187a115e2c9ec7091bac07287"
+    - "88807bc5355f"
+  masked: false
+  messages:
+    - data: "Message"
+      binary: false
+  close: 1005
+
+- data:
+    - "819de3090abeb76163cdc360799e822966d18d6e6fccc37d6fcd972967db907a6bd986"
+    - "8880ed2ff9ee"
+  masked: false
+  messages:
+    - data: "This is a longer test message"
+      binary: false
+  close: 1005
+
+- data:
+    - "8289715ea0453c3bd3361039c56540"
+    - "8189e65b7983ab3e0af0873c1ca3d4"
+    - "81899506b209d863c17af461d729a6"
+    - "888200005b2103e8"
+  masked: false
+  messages:
+    - data: "Message 1"
+      binary: true
+    - data: "Message 2"
+      binary: false
+    - data: "Message 3"
+      binary: false
+  close: 1000
+
+- data:
+    - "018389034102d2321c"
+    - "0083efa581aeb497dc"
+    - "80836e4e0c9c357d51"
+    - "888200005b2103e8"
+  masked: false
+  messages:
+    - data: "[1][2][3]"
+      binary: false
+  close: 1000
+
+- data:
+    - "8980ed2ff9ee" # Ping frame
+    - "888200005b2103e9"
+  masked: false
+  messages:
+    - data: "Message"
+      binary: false
+  close: 1001
+
+- data:
+    - "8a80ed2ff9ee" # Pong frame
+    - "888000005b21"
+  masked: false
+  messages:
+    - data: "Message"
+      binary: false
+  close: 1005
