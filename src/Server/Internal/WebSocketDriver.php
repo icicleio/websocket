@@ -5,7 +5,6 @@ use Icicle\Http\Driver\Http1Driver;
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
 use Icicle\Socket\Socket;
-use Icicle\WebSocket\Connection;
 use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
 
 class WebSocketDriver extends Http1Driver

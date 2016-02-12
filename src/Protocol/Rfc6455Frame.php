@@ -12,6 +12,10 @@ class Rfc6455Frame
     const PING =         0x9;
     const PONG =         0xa;
 
+    const RSV1 =         0x4;
+    const RSV2 =         0x2;
+    const RSV3 =         0x1;
+
     /**
      * Integer value corresponding to one of the type constants.
      *
@@ -113,7 +117,7 @@ class Rfc6455Frame
      */
     public function getRsv1()
     {
-        return (bool) $this->rsv & 4;
+        return (bool) $this->rsv & self::RSV1;
     }
 
     /**
@@ -121,7 +125,7 @@ class Rfc6455Frame
      */
     public function getRsv2()
     {
-        return (bool) $this->rsv & 2;
+        return (bool) $this->rsv & self::RSV2;
     }
 
     /**
@@ -129,6 +133,6 @@ class Rfc6455Frame
      */
     public function getRsv3()
     {
-        return (bool) $this->rsv & 1;
+        return (bool) $this->rsv & self::RSV3;
     }
 }

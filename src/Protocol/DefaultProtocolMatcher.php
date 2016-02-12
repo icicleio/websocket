@@ -35,7 +35,6 @@ class DefaultProtocolMatcher implements ProtocolMatcher
                 'Content-Length' => $sink->getLength(),
                 'Content-Type' => 'text/plain',
             ], $sink);
-            return;
         }
 
         if (strtolower($request->getHeader('Connection')) !== 'upgrade'
@@ -69,7 +68,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     /**
      * {@inheritdoc}
      */
-    public function createRequest(Uri $uri, array $protocols = [])
+    public function createRequest(Uri $uri, array $protocols = [], array $extensions = [])
     {
         $headers = [
             'Connection' => 'upgrade',
@@ -79,10 +78,14 @@ class DefaultProtocolMatcher implements ProtocolMatcher
         ];
 
         if (!empty($protocols)) {
-            $headers['Sec-WebSocket-Protocol'] = $protocols;
+            $headers['Sec-WebSocket-Protocol'] = implode(', ', $protocols);
         }
 
-        yield new WebSocketRequest($uri, $headers);
+        if (!empty($extensions)) {
+            $headers['Sec-WebSocket-Extension'] = implode(', ', $extensions);
+        }
+
+        return new WebSocketRequest($uri, $headers);
     }
 
     /**

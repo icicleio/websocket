@@ -1,6 +1,7 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
+use Icicle\Awaitable\Exception\TimeoutException;
 use Icicle\Coroutine;
 use Icicle\Observable\Emitter;
 use Icicle\Loop;
@@ -22,6 +23,7 @@ class Rfc6455Connection implements Connection
     const DEFAULT_INACTIVITY_TIMEOUT = 60;
     const DEFAULT_MAX_MESSAGE_SIZE = 0x100000; // 1 MB
     const DEFAULT_MAX_FRAME_COUNT = 128;
+    const PING_DATA_LENGTH = 3;
 
     /**
      * @var \Icicle\WebSocket\Protocol\Rfc6455Transporter
@@ -134,7 +136,7 @@ class Rfc6455Connection implements Connection
 
             $ping = Loop\periodic($interval, Coroutine\wrap(function () use (&$pong, &$expected) {
                 try {
-                    yield $this->ping($expected = base64_encode(random_bytes(3)));
+                    yield $this->ping($expected = base64_encode(random_bytes(self::PING_DATA_LENGTH)));
 
                     if (null === $pong) {
                         $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
@@ -260,6 +262,8 @@ class Rfc6455Connection implements Connection
                 $close = new Close(Close::ABNORMAL, $exception->getMessage());
             } catch (StreamException $exception) {
                 $close = new Close(Close::ABNORMAL, $exception->getMessage());
+            } catch (TimeoutException $exception) {
+                $close = new Close(Close::GOING_AWAY, $exception->getMessage());
             } finally {
                 $ping->stop();
                 if (null !== $pong) {

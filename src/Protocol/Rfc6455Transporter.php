@@ -105,7 +105,7 @@ class Rfc6455Transporter
                 }
             } elseif ($size === self::EIGHT_BYTE_LENGTH_FLAG) {
                 while ($buffer->getLength() < 8) {
-                    $buffer .= (yield $this->socket->read(0, null, $timeout));
+                    $buffer->push(yield $this->socket->read(0, null, $timeout));
                 }
 
                 $bytes = unpack('Nhigh/Nlow', $buffer->shift(8));

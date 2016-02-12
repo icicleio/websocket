@@ -15,6 +15,6 @@ class WebSocketRequest extends BasicRequest
      */
     public function __construct(Uri $uri, array $headers, ReadableStream $stream = null, $target = null)
     {
-        parent::__construct('GET', $uri, $headers, $stream, $target, '1.1');
+        parent::__construct('GET', $uri, $headers, $stream, $target);
     }
 }
