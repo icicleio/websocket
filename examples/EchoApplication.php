@@ -3,12 +3,30 @@ namespace Icicle\Examples\WebSocket;
 
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
+use Icicle\Log as LogNS;
+use Icicle\Log\Log;
 use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
 use Icicle\WebSocket\Connection;
 
 class EchoApplication implements Application
 {
+    /**
+     * @var \Icicle\Log\Log
+     */
+    private $log;
+
+    /**
+     * @param \Icicle\Log\Log|null $log
+     */
+    public function __construct(Log $log = null)
+    {
+        $this->log = $log ?: LogNS\log();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function onHandshake(Response $response, Request $request, Socket $socket)
     {
         // This method provides an opportunity to inspect the Request and Response before a connection is accepted.
@@ -17,6 +35,9 @@ class EchoApplication implements Application
         return $response; // No modification needed to the response, so the passed Response object is simply returned.
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function onConnection(Connection $connection, Response $response, Request $request)
     {
         // The Response and Request objects used to initiate the connection are provided for informational purposes.
@@ -43,6 +64,13 @@ class EchoApplication implements Application
         /** @var \Icicle\WebSocket\Close $close */
         $close = $iterator->getReturn(); // Only needs to be called if the close reason is needed.
 
-        printf("Close code: %d; Data: %s\n", $close->getCode(), $close->getData());
+        yield $this->log->log(
+            Log::INFO,
+            'WebSocket connection from %s:%d closed; Code %d; Data: %s',
+            $connection->getRemoteAddress(),
+            $connection->getRemotePort(),
+            $close->getCode(),
+            $close->getData()
+        );
     }
 }
