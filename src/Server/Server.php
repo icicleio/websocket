@@ -3,9 +3,9 @@ namespace Icicle\WebSocket\Server;
 
 use Icicle\Http\Server\Internal\Listener;
 use Icicle\Http\Server\RequestHandler;
+use Icicle\Log as LogNS;
+use Icicle\Log\Log;
 use Icicle\Socket\Server\DefaultServerFactory;
-use Icicle\Stream;
-use Icicle\Stream\WritableStream;
 use Icicle\WebSocket\Protocol\DefaultProtocolMatcher;
 
 final class Server
@@ -19,15 +19,15 @@ final class Server
 
     /**
      * @param \Icicle\Http\Server\RequestHandler $handler
-     * @param \Icicle\Stream\WritableStream|null $log
+     * @param \Icicle\Log\Log|null $log
      * @param mixed[] $options
      */
-    public function __construct(RequestHandler $handler, WritableStream $log = null, array $options = [])
+    public function __construct(RequestHandler $handler, Log $log = null, array $options = [])
     {
         $this->listener = new Listener(
             new Internal\WebSocketDriver($options),
             new Internal\WebSocketRequestHandler(new DefaultProtocolMatcher(), $handler),
-            $log ?: Stream\stderr(),
+            $log ?: LogNS\log(),
             new DefaultServerFactory()
         );
     }

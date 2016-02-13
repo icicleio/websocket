@@ -18,6 +18,7 @@
         "icicleio/icicle": "^0.9.1",
         "icicleio/socket": "^0.5.2",
         "icicleio/http": "v0.3.x-dev as 0.3.0",
+        "icicleio/log": "^0.1",
         "paragonie/random_compat": "^1"
     },
     "require-dev": {
