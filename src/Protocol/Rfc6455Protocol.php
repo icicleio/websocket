@@ -17,6 +17,19 @@ class Rfc6455Protocol implements Protocol
     const DEFAULT_KEY_LENGTH = 12;
 
     /**
+     * @var mixed[]
+     */
+    private $options;
+
+    /**
+     * @param mixed[] $options
+     */
+    public function __construct(array $options = [])
+    {
+        $this->options = $options;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function getVersionNumber()
@@ -76,9 +89,16 @@ class Rfc6455Protocol implements Protocol
         }
         */
 
-        $connection = new Rfc6455Connection(new Rfc6455Transporter($socket, false), $protocol, []);
+        $connection = new Rfc6455Connection(
+            new Rfc6455Transporter($socket, false),
+            $protocol,
+            [],
+            $this->options
+        );
 
-        yield new WebSocketResponse($headers, $application, $connection);
+        $response = new BasicResponse(Response::SWITCHING_PROTOCOLS, $headers);
+
+        yield new WebSocketResponse($application, $connection, $response);
     }
 
     /**

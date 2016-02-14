@@ -51,13 +51,20 @@ class WebSocketRequestHandler implements RequestHandler
 
         $response = (yield $this->matcher->createResponse($application, $request, $socket));
 
-        // Response changed, so simply return that response instead.
         if (!$response instanceof WebSocketResponse) {
             yield $response;
             return;
         }
 
-        yield $application->onHandshake($response, $request, $socket);
+        $message = $response->getMessage();
+
+        $result = (yield $application->onHandshake($message, $request, $socket));
+
+        if ($result !== $message) {
+            $response = new WebSocketResponse($response->getApplication(), $response->getConnection(), $result);
+        }
+
+        yield $response;
     }
 
     /**

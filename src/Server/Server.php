@@ -24,10 +24,14 @@ final class Server
      */
     public function __construct(RequestHandler $handler, Log $log = null, array $options = [])
     {
+        if (null === $log) {
+            $log = LogNS\log();
+        }
+
         $this->listener = new Listener(
-            new Internal\WebSocketDriver($options),
-            new Internal\WebSocketRequestHandler(new DefaultProtocolMatcher(), $handler),
-            $log ?: LogNS\log(),
+            new Internal\WebSocketDriver($log, $options),
+            new Internal\WebSocketRequestHandler(new DefaultProtocolMatcher($options), $handler),
+            $log,
             new DefaultServerFactory()
         );
     }

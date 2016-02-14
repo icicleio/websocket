@@ -1,6 +1,7 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
+use Icicle\Http\Message\BasicRequest;
 use Icicle\Http\Message\BasicResponse;
 use Icicle\Http\Message\Request;
 use Icicle\Http\Message\Response;
@@ -8,7 +9,6 @@ use Icicle\Http\Message\Uri;
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Protocol\Message\WebSocketRequest;
 
 class DefaultProtocolMatcher implements ProtocolMatcher
 {
@@ -17,9 +17,13 @@ class DefaultProtocolMatcher implements ProtocolMatcher
      */
     private $protocol;
 
-    public function __construct()
+    /**
+     * @param mixed[] $options
+     */
+    public function __construct(array $options = [])
     {
-        $this->protocol = new Rfc6455Protocol(); // Only RFC6455 supported at the moment, so keeping this simple.
+        // Only RFC6455 supported at the moment, so keeping this simple.
+        $this->protocol = new Rfc6455Protocol($options);
     }
 
     /**
@@ -85,7 +89,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             $headers['Sec-WebSocket-Extension'] = implode(', ', $extensions);
         }
 
-        return new WebSocketRequest($uri, $headers);
+        return new BasicRequest('GET', $uri, $headers);
     }
 
     /**
