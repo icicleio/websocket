@@ -10,27 +10,19 @@ use Icicle\WebSocket\Application;
 interface ProtocolMatcher
 {
     /**
-     * @coroutine
-     *
      * @param \Icicle\WebSocket\Application $application
      * @param \Icicle\Http\Message\Request $request
      * @param \Icicle\Socket\Socket $socket
      *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Response
+     * @return \Icicle\Http\Message\Response
      */
     public function createResponse(Application $application, Request $request, Socket $socket);
 
     /**
-     * @coroutine
-     *
      * @param \Icicle\Http\Message\Uri $uri
      * @param string[] $protocols
      *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Request
+     * @return \Icicle\Http\Message\Request
      */
     public function createRequest(Uri $uri, array $protocols = []);
 

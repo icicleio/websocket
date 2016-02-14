@@ -23,15 +23,11 @@ interface Protocol
     public function isProtocol(Request $request);
 
     /**
-     * @coroutine
-     *
      * @param Application $application
      * @param Request $request
      * @param Socket $socket
      *
-     * @return \Generator
-     *
-     * @resolve \Icicle\Http\Message\Response
+     * @return \Icicle\Http\Message\Response
      */
     public function createResponse(Application $application, Request $request, Socket $socket);
 
@@ -44,10 +40,11 @@ interface Protocol
     public function validateResponse(Request $request, Response $response);
 
     /**
+     * @param \Icicle\Http\Message\Response $response
      * @param \Icicle\Socket\Socket $socket
      * @param bool $mask
      *
-     * @return \Icicle\WebSocket\Protocol\Protocol
+     * @return \Icicle\WebSocket\Connection
      */
-    //public function createConnection(Socket $socket, $mask);
+    public function createConnection(Response $response, Socket $socket, $mask);
 }

@@ -62,8 +62,7 @@ class Rfc6455ProtocolTest extends TestCase
         $application = $this->getMock(Application::class);
         $socket = $this->getMock(Socket::class);
 
-        $coroutine = new Coroutine($this->protocol->createResponse($application, $request, $socket));
-        $response = $coroutine->wait();
+        $response = $this->protocol->createResponse($application, $request, $socket);
 
         $this->assertInstanceOf(WebSocketResponse::class, $response);
     }
@@ -91,8 +90,7 @@ class Rfc6455ProtocolTest extends TestCase
 
         $socket = $this->getMock(Socket::class);
 
-        $coroutine = new Coroutine($this->protocol->createResponse($application, $request, $socket));
-        $response = $coroutine->wait();
+        $response = $this->protocol->createResponse($application, $request, $socket);
 
         $this->assertInstanceOf(WebSocketResponse::class, $response);
 
@@ -115,8 +113,7 @@ class Rfc6455ProtocolTest extends TestCase
         $application = $this->getMock(Application::class);
         $socket = $this->getMock(Socket::class);
 
-        $coroutine = new Coroutine($this->protocol->createResponse($application, $request, $socket));
-        $response = $coroutine->wait();
+        $response = $this->protocol->createResponse($application, $request, $socket);
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertSame(Response::BAD_REQUEST, $response->getStatusCode());

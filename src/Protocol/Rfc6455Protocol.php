@@ -54,11 +54,10 @@ class Rfc6455Protocol implements Protocol
     {
         if (!$request->hasHeader('Sec-WebSocket-Key')) {
             $sink = new MemorySink('No WebSocket key header provided.');
-            yield new BasicResponse(Response::BAD_REQUEST, [
+            return new BasicResponse(Response::BAD_REQUEST, [
                 'Connection' => 'close',
                 'Content-Length' => $sink->getLength(),
             ], $sink);
-            return;
         }
 
         $headers = [
@@ -75,8 +74,6 @@ class Rfc6455Protocol implements Protocol
             if (strlen($protocol)) {
                 $headers['Sec-WebSocket-Protocol'] = $protocol;
             }
-        } else {
-            $protocol = '';
         }
 
         /*
@@ -89,16 +86,24 @@ class Rfc6455Protocol implements Protocol
         }
         */
 
-        $connection = new Rfc6455Connection(
-            new Rfc6455Transporter($socket, false),
-            $protocol,
-            [],
-            $this->options
-        );
-
         $response = new BasicResponse(Response::SWITCHING_PROTOCOLS, $headers);
 
-        yield new WebSocketResponse($application, $connection, $response);
+        $connection = $this->createConnection($response, $socket, false);
+
+        return new WebSocketResponse($application, $connection, $response);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function createConnection(Response $response, Socket $socket, $mask)
+    {
+        return new Rfc6455Connection(
+            new Rfc6455Transporter($socket, $mask),
+            $response->getHeader('Sec-WebSocket-Protocol'),
+            $response->getHeaderAsArray('Sec-WebSocket-Extension'),
+            $this->options
+        );
     }
 
     /**

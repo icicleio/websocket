@@ -33,7 +33,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     {
         if ($request->getMethod() !== 'GET') {
             $sink = new MemorySink('Only GET requests allowed for WebSocket connections.');
-            yield new BasicResponse(Response::METHOD_NOT_ALLOWED, [
+            return new BasicResponse(Response::METHOD_NOT_ALLOWED, [
                 'Connection' => 'close',
                 'Upgrade' => 'websocket',
                 'Content-Length' => $sink->getLength(),
@@ -45,28 +45,26 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             || strtolower($request->getHeader('Upgrade')) !== 'websocket'
         ) {
             $sink = new MemorySink('Must upgrade to WebSocket connection for requested resource.');
-            yield new BasicResponse(Response::UPGRADE_REQUIRED, [
+            return new BasicResponse(Response::UPGRADE_REQUIRED, [
                 'Connection' => 'close',
                 'Upgrade' => 'websocket',
                 'Content-Length' => $sink->getLength(),
                 'Content-Type' => 'text/plain',
             ], $sink);
-            return;
         }
 
         if (!$this->protocol->isProtocol($request)) {
             $sink = new MemorySink('Unsupported protocol version.');
-            yield new BasicResponse(Response::UPGRADE_REQUIRED, [
+            return new BasicResponse(Response::UPGRADE_REQUIRED, [
                 'Connection' => 'close',
                 'Content-Length' => $sink->getLength(),
                 'Content-Type' => 'text/plain',
                 'Upgrade' => 'websocket',
                 'Sec-WebSocket-Version' => $this->getSupportedVersions()
             ], $sink);
-            return;
         }
 
-        yield $this->protocol->createResponse($application, $request, $socket);
+        return $this->protocol->createResponse($application, $request, $socket);
     }
 
     /**
