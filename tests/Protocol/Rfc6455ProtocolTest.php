@@ -1,7 +1,6 @@
 <?php
 namespace Icicle\Tests\WebSocket\Protocol;
 
-use Icicle\Coroutine\Coroutine;
 use Icicle\Http\Message\BasicRequest;
 use Icicle\Http\Message\BasicResponse;
 use Icicle\Http\Message\Response;
