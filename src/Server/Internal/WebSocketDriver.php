@@ -10,12 +10,14 @@ use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
 
 class WebSocketDriver extends Http1Driver
 {
+    /**
+     * @var \Icicle\Log\Log
+     */
     private $log;
 
     /**
      * @param \Icicle\Log\Log $log
-     *
-     * @param array $options
+     * @param mixed[] $options
      */
     public function __construct(Log $log, array $options = [])
     {
@@ -24,6 +26,9 @@ class WebSocketDriver extends Http1Driver
         $this->log = $log;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function writeResponse(
         Socket $socket,
         Response $response,
@@ -35,6 +40,7 @@ class WebSocketDriver extends Http1Driver
         if ($response instanceof WebSocketResponse) {
             $application = $response->getApplication();
             $connection = $response->getConnection();
+            $response = $response->getMessage();
 
             assert(yield $this->log->log(
                 Log::DEBUG,
