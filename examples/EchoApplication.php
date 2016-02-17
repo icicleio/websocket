@@ -40,6 +40,15 @@ class EchoApplication implements Application
      */
     public function onConnection(Connection $connection, Response $response, Request $request)
     {
+        yield $this->log->log(
+            Log::INFO,
+            'Accepted WebSocket connection from %s:%d on %s:%d',
+            $connection->getRemoteAddress(),
+            $connection->getRemotePort(),
+            $connection->getLocalAddress(),
+            $connection->getLocalPort()
+        );
+
         // The Response and Request objects used to initiate the connection are provided for informational purposes.
         // This method will primarily interact with the Connection object.
 
