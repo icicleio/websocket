@@ -138,12 +138,17 @@ class Rfc6455Transporter
                 $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
             }
 
-            yield new Frame($opcode, $data, $rsv, $final);
-        } finally {
             if (!$buffer->isEmpty()) {
                 $this->socket->unshift((string) $buffer);
             }
+        } catch (\Exception $exception) { // Not using finally due to PHPUnit mocks. Will use finally in PHP 7.
+            if (!$buffer->isEmpty()) {
+                $this->socket->unshift((string) $buffer);
+            }
+            throw $exception;
         }
+
+        yield new Frame($opcode, $data, $rsv, $final);
     }
 
     /**

@@ -166,7 +166,7 @@ class Rfc6455ConnectionTest extends TestCase
     public function testMaxMessageSize()
     {
         $data  = hex2bin('817f');
-        $data .= pack('J', Rfc6455Connection::DEFAULT_MAX_MESSAGE_SIZE + 1);
+        $data .= pack('NN', 0, Rfc6455Connection::DEFAULT_MAX_MESSAGE_SIZE + 1);
         $data .= str_repeat(chr(0), Rfc6455Connection::DEFAULT_MAX_MESSAGE_SIZE + 1);
 
         $connection = $this->createConnection($this->createSocket($data), true);
