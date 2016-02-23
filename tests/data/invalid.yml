@@ -1,0 +1,66 @@
+
+# Unmasked frame on masked connection
+- data:
+    - "8107ec7091bac07287"
+    - "88807bc5355f"
+  masked: false
+  close: 1002
+
+# Masked frame on unmasked connection
+- data:
+    - "8187a115e2c9ec7091bac07287"
+    - "88807bc5355f"
+  masked: true
+  close: 1002
+
+# Non-continuation non-control frame after non-final frame
+- data:
+    - "018389034102d2321c"
+    - "0183efa581aeb497dc"
+    - "80836e4e0c9c357d51"
+  masked: false
+  close: 1002
+
+# Orphan continuation frame
+- data:
+    - "818389034102d2321c"
+    - "0083efa581aeb497dc"
+  masked: false
+  close: 1002
+
+# Invalid frame type
+- data:
+    - "8d8389034102d2321c"
+  masked: false
+  close: 1002
+
+# Invalid UTF-8 in text frame
+- data:
+    - "810280bf"
+    - "8800"
+  masked: true
+  close: 1007
+
+# Invalid UTF-8 in close frame
+- data:
+    - "880403e880bf"
+  masked: true
+  close: 1007
+
+# Invalid two-byte length format
+- data:
+    - "817e000131"
+  masked: true
+  close: 1002
+
+# Invalid two-byte length format
+- data:
+    - "817f000000000000000131"
+  masked: true
+  close: 1002
+
+# Non-final control frame
+- data:
+    - "0900"
+  masked: true
+  close: 1002

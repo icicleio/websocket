@@ -22,7 +22,7 @@ class Rfc6455Connection implements Connection
     const DEFAULT_TIMEOUT = 5;
     const DEFAULT_INACTIVITY_TIMEOUT = 60;
     const DEFAULT_MAX_MESSAGE_SIZE = 0x100000; // 1 MB
-    const DEFAULT_MAX_FRAME_COUNT = 128;
+    const DEFAULT_MAX_FRAME_COUNT = 8;
     const PING_DATA_LENGTH = 3;
 
     /**
