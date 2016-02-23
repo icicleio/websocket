@@ -1,14 +1,12 @@
 <?php
 namespace Icicle\WebSocket\Server\Internal;
 
-use Icicle\Http\Exception\InvalidResultError;
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
-use Icicle\Http\Server\RequestHandler;
+use Icicle\Http\{Exception\InvalidResultError, Server\RequestHandler};
+use Icicle\Http\Message\{Request, Response};
+use Icicle\Awaitable\Awaitable;
 use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
-use Icicle\WebSocket\Protocol\ProtocolMatcher;
+use Icicle\WebSocket\Protocol\{Message\WebSocketResponse, ProtocolMatcher};
 
 class WebSocketRequestHandler implements RequestHandler
 {
@@ -47,23 +45,33 @@ class WebSocketRequestHandler implements RequestHandler
      */
     public function onRequest(Request $request, Socket $socket)
     {
-        $application = (yield $this->handler->onRequest($request, $socket));
+        $application = $this->handler->onRequest($request, $socket);
 
-        if (!$application instanceof Application) {
-            yield $application; // Other response returned, let HTTP server handle it.
-            return;
+        if ($application instanceof \Generator) {
+            $application = yield from $application;
+        } elseif ($application instanceof Awaitable) {
+            $application = yield $application;
         }
 
-        $response = (yield $this->matcher->createResponse($application, $request, $socket));
+        if (!$application instanceof Application) {
+            return $application; // Other response returned, let HTTP server handle it.
+        }
+
+        $response = $this->matcher->createResponse($application, $request, $socket);
 
         if (!$response instanceof WebSocketResponse) {
-            yield $response;
-            return;
+            return $response;
         }
 
         $message = $response->getMessage();
 
-        $result = (yield $application->onHandshake($message, $request, $socket));
+        $result = $application->onHandshake($message, $request, $socket);
+
+        if ($result instanceof \Generator) {
+            $result = yield from $result;
+        } elseif ($result instanceof Awaitable) {
+            $result = yield $result;
+        }
 
         if (!$result instanceof Response) {
             throw new InvalidResultError(
@@ -76,13 +84,13 @@ class WebSocketRequestHandler implements RequestHandler
             $response = new WebSocketResponse($response->getApplication(), $response->getConnection(), $result);
         }
 
-        yield $response;
+        return $response;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function onError($code, Socket $socket)
+    public function onError(int $code, Socket $socket)
     {
         return $this->handler->onError($code, $socket);
     }

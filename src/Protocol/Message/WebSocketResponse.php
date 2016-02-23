@@ -1,10 +1,9 @@
 <?php
 namespace Icicle\WebSocket\Protocol\Message;
 
-use Icicle\Http\Message\Response;
+use Icicle\Http\Message\{Cookie\Cookie, Message, Response};
 use Icicle\Stream\ReadableStream;
-use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Connection;
+use Icicle\WebSocket\{Application, Connection};
 
 class WebSocketResponse implements Response
 {
@@ -41,7 +40,7 @@ class WebSocketResponse implements Response
     /**
      * @return \Icicle\WebSocket\Application
      */
-    public function getApplication()
+    public function getApplication(): Application
     {
         return $this->application;
     }
@@ -49,7 +48,7 @@ class WebSocketResponse implements Response
     /**
      * @return \Icicle\WebSocket\Connection
      */
-    public function getConnection()
+    public function getConnection(): Connection
     {
         return $this->connection;
     }
@@ -57,7 +56,7 @@ class WebSocketResponse implements Response
     /**
      * @return \Icicle\Http\Message\Response
      */
-    public function getMessage()
+    public function getMessage(): Response
     {
         return $this->message;
     }
@@ -65,7 +64,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getProtocolVersion()
+    public function getProtocolVersion(): string
     {
         return $this->message->getProtocolVersion();
     }
@@ -73,7 +72,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getHeaders()
+    public function getHeaders(): array
     {
         return $this->message->getHeaders();
     }
@@ -81,7 +80,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function hasHeader($name)
+    public function hasHeader(string $name): bool
     {
         return $this->message->hasHeader($name);
     }
@@ -89,7 +88,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getHeaderAsArray($name)
+    public function getHeaderAsArray(string $name): array
     {
         return $this->message->getHeaderAsArray($name);
     }
@@ -97,7 +96,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getHeader($name)
+    public function getHeader(string $name): string
     {
         return $this->message->getHeader($name);
     }
@@ -105,7 +104,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getBody()
+    public function getBody(): ReadableStream
     {
         return $this->message->getBody();
     }
@@ -113,7 +112,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withProtocolVersion($version)
+    public function withProtocolVersion(string $version): Message
     {
         $new = clone $this;
         $new->message = $new->message->withProtocolVersion($version);
@@ -123,7 +122,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withHeader($name, $value)
+    public function withHeader(string $name, $value): Message
     {
         $new = clone $this;
         $new->message = $new->message->withHeader($name, $value);
@@ -133,7 +132,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withAddedHeader($name, $value)
+    public function withAddedHeader(string $name, $value): Message
     {
         $new = clone $this;
         $new->message = $new->message->withAddedHeader($name, $value);
@@ -143,7 +142,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withoutHeader($name)
+    public function withoutHeader(string $name): Message
     {
         $new = clone $this;
         $new->message = $new->message->withoutHeader($name);
@@ -153,7 +152,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withBody(ReadableStream $stream)
+    public function withBody(ReadableStream $stream): Message
     {
         $new = clone $this;
         $new->message = $new->message->withBody($stream);
@@ -163,7 +162,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getStatusCode()
+    public function getStatusCode(): int
     {
         return $this->message->getStatusCode();
     }
@@ -171,7 +170,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getReasonPhrase()
+    public function getReasonPhrase(): string
     {
         return $this->message->getReasonPhrase();
     }
@@ -179,7 +178,7 @@ class WebSocketResponse implements Response
     /**
      * @return \Icicle\Http\Message\Cookie\MetaCookie[]
      */
-    public function getCookies()
+    public function getCookies(): array
     {
         return $this->message->getCookies();
     }
@@ -187,7 +186,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function hasCookie($name)
+    public function hasCookie(string $name): bool
     {
         return $this->message->hasCookie($name);
     }
@@ -195,7 +194,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function getCookie($name)
+    public function getCookie(string $name): Cookie
     {
         return $this->message->getCookie($name);
     }
@@ -203,7 +202,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withStatus($code, $reason = null)
+    public function withStatus(int $code, string $reason = null): Response
     {
         $new = clone $this;
         $new->message = $new->message->withStatus($code, $reason);
@@ -214,15 +213,14 @@ class WebSocketResponse implements Response
      * {@inheritdoc}
      */
     public function withCookie(
-        $name,
+        string $name,
         $value = '',
-        $expires = 0,
-        $path = '',
-        $domain = '',
-        $secure = false,
-        $httpOnly = false
-    )
-    {
+        int $expires = 0,
+        string $path = '',
+        string $domain = '',
+        bool $secure = false,
+        bool $httpOnly = false
+    ): Response {
         $new = clone $this;
         $new->message = $new->message->withCookie($name, $value, $expires, $path, $domain, $secure, $httpOnly);
         return $new;
@@ -231,7 +229,7 @@ class WebSocketResponse implements Response
     /**
      * {@inheritdoc}
      */
-    public function withoutCookie($name)
+    public function withoutCookie(string $name): Response
     {
         $new = clone $this;
         $new->message = $new->message->withoutCookie($name);

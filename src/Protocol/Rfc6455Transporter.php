@@ -4,8 +4,7 @@ namespace Icicle\WebSocket\Protocol;
 use Icicle\Socket\Socket;
 use Icicle\Stream;
 use Icicle\Stream\Structures\Buffer;
-use Icicle\WebSocket\Exception\FrameException;
-use Icicle\WebSocket\Exception\PolicyException;
+use Icicle\WebSocket\Exception\{FrameException, PolicyException};
 use Icicle\WebSocket\Protocol\Rfc6455Frame as Frame;
 
 class Rfc6455Transporter
@@ -50,10 +49,10 @@ class Rfc6455Transporter
      * @param \Icicle\Socket\Socket $socket
      * @param bool $masked True if received frames should be masked
      */
-    public function __construct(Socket $socket, $masked)
+    public function __construct(Socket $socket, bool $masked)
     {
         $this->socket = $socket;
-        $this->masked = (bool) $masked;
+        $this->masked = $masked;
     }
 
     /**
@@ -68,13 +67,13 @@ class Rfc6455Transporter
      *
      * @throws \Icicle\WebSocket\Exception\FrameException
      */
-    public function read($maxSize, $timeout = 0)
+    public function read(int $maxSize, float $timeout = 0): \Generator
     {
         $buffer = new Buffer();
 
         try {
             do {
-                $buffer->push(yield $this->socket->read(0, null, $timeout));
+                $buffer->push(yield from $this->socket->read(0, null, $timeout));
             } while ($buffer->getLength() < 2);
 
             $bytes = unpack('Cflags/Clength', $buffer->shift(2));
@@ -94,7 +93,7 @@ class Rfc6455Transporter
 
             if ($size === self::TWO_BYTE_LENGTH_FLAG) {
                 while ($buffer->getLength() < 2) {
-                    $buffer->push(yield $this->socket->read(0, null, $timeout));
+                    $buffer->push(yield from $this->socket->read(0, null, $timeout));
                 }
 
                 $bytes = unpack('nlength', $buffer->shift(2));
@@ -105,7 +104,7 @@ class Rfc6455Transporter
                 }
             } elseif ($size === self::EIGHT_BYTE_LENGTH_FLAG) {
                 while ($buffer->getLength() < 8) {
-                    $buffer->push(yield $this->socket->read(0, null, $timeout));
+                    $buffer->push(yield from $this->socket->read(0, null, $timeout));
                 }
 
                 $bytes = unpack('Nhigh/Nlow', $buffer->shift(8));
@@ -122,14 +121,14 @@ class Rfc6455Transporter
 
             if ($masked) {
                 while ($buffer->getLength() < self::MASK_LENGTH) {
-                    $buffer->push(yield $this->socket->read(0, null, $timeout));
+                    $buffer->push(yield from $this->socket->read(0, null, $timeout));
                 }
 
                 $mask = $buffer->shift(self::MASK_LENGTH);
             }
 
             while ($buffer->getLength() < $size) {
-                $buffer->push(yield $this->socket->read(0, null, $timeout));
+                $buffer->push(yield from $this->socket->read(0, null, $timeout));
             }
 
             $data = $buffer->shift($size);
@@ -137,18 +136,13 @@ class Rfc6455Transporter
             if ($masked) {
                 $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
             }
-
+        } finally {
             if (!$buffer->isEmpty()) {
                 $this->socket->unshift((string) $buffer);
             }
-        } catch (\Exception $exception) { // Not using finally due to PHPUnit mocks. Will use finally in PHP 7.
-            if (!$buffer->isEmpty()) {
-                $this->socket->unshift((string) $buffer);
-            }
-            throw $exception;
         }
 
-        yield new Frame($opcode, $data, $rsv, $final);
+        return new Frame($opcode, $data, $rsv, $final);
     }
 
     /**
@@ -161,7 +155,7 @@ class Rfc6455Transporter
      *
      * @resolve int Number of bytes sent on the socket.
      */
-    public function send(Frame $frame, $timeout = 0)
+    public function send(Frame $frame, float $timeout = 0): \Generator
     {
         $byte = $frame->getType();
 
@@ -205,8 +199,8 @@ class Rfc6455Transporter
             $data ^= str_repeat($mask, (int) (($size + self::MASK_LENGTH - 1) / self::MASK_LENGTH));
         }
 
-        $written = (yield $this->socket->write($buffer, $timeout));
-        yield $written + (yield $this->socket->write($data, $timeout));
+        $written = yield from $this->socket->write($buffer, $timeout);
+        return $written + yield from $this->socket->write($data, $timeout);
     }
 
     /**
@@ -214,7 +208,7 @@ class Rfc6455Transporter
      *
      * @return bool
      */
-    public function isOpen()
+    public function isOpen(): bool
     {
         return $this->socket->isOpen();
     }
@@ -230,7 +224,7 @@ class Rfc6455Transporter
     /**
      * @return string
      */
-    public function getLocalAddress()
+    public function getLocalAddress(): string
     {
         return $this->socket->getLocalAddress();
     }
@@ -238,7 +232,7 @@ class Rfc6455Transporter
     /**
      * @return int
      */
-    public function getLocalPort()
+    public function getLocalPort(): int
     {
         return $this->socket->getLocalPort();
     }
@@ -246,7 +240,7 @@ class Rfc6455Transporter
     /**
      * @return string
      */
-    public function getRemoteAddress()
+    public function getRemoteAddress(): string
     {
         return $this->socket->getRemoteAddress();
     }
@@ -254,7 +248,7 @@ class Rfc6455Transporter
     /**
      * @return int
      */
-    public function getRemotePort()
+    public function getRemotePort(): int
     {
         return $this->socket->getRemotePort();
     }
@@ -262,7 +256,7 @@ class Rfc6455Transporter
     /**
      * @return bool
      */
-    public function isCryptoEnabled()
+    public function isCryptoEnabled(): bool
     {
         return $this->socket->isCryptoEnabled();
     }

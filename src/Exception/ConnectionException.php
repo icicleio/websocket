@@ -12,16 +12,16 @@ class ConnectionException extends \Exception implements Exception
      * @param int $reasonCode
      * @param string $message
      */
-    public function __construct($reasonCode, $message)
+    public function __construct(int $reasonCode, string $message)
     {
         parent::__construct($message);
-        $this->reasonCode = (int) $reasonCode;
+        $this->reasonCode = $reasonCode;
     }
 
     /**
      * @return int
      */
-    public function getReasonCode()
+    public function getReasonCode(): int
     {
         return $this->reasonCode;
     }

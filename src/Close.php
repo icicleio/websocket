@@ -30,16 +30,16 @@ class Close
      * @param int $code
      * @param string $data
      */
-    public function __construct($code = self::NORMAL, $data = '')
+    public function __construct(int $code = self::NORMAL, string $data = '')
     {
-        $this->code = (int) $code;
-        $this->data = (string) $data;
+        $this->code = $code;
+        $this->data = $data;
     }
 
     /**
      * @return int
      */
-    public function getCode()
+    public function getCode(): int
     {
         return $this->code;
     }
@@ -47,7 +47,7 @@ class Close
     /**
      * @return string
      */
-    public function getData()
+    public function getData(): string
     {
         return $this->data;
     }
@@ -55,7 +55,7 @@ class Close
     /**
      * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->data;
     }

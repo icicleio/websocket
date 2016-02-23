@@ -10,5 +10,5 @@ interface SubProtocol extends Application
      *
      * @return string
      */
-    public function selectSubProtocol(array $protocols);
+    public function selectSubProtocol(array $protocols): string;
 }

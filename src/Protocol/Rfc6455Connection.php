@@ -3,19 +3,13 @@ namespace Icicle\WebSocket\Protocol;
 
 use Icicle\Awaitable\Exception\TimeoutException;
 use Icicle\Coroutine;
-use Icicle\Observable\Emitter;
 use Icicle\Loop;
+use Icicle\Observable\{Emitter, Observable};
 use Icicle\Socket\Exception\Exception as SocketException;
 use Icicle\Stream\Exception\Exception as StreamException;
-use Icicle\WebSocket\Close;
-use Icicle\WebSocket\Connection;
-use Icicle\WebSocket\Exception\ConnectionException;
-use Icicle\WebSocket\Exception\DataException;
-use Icicle\WebSocket\Exception\PolicyException;
-use Icicle\WebSocket\Exception\ProtocolException;
-use Icicle\WebSocket\Message;
-use Icicle\WebSocket\Protocol\Rfc6455Frame as Frame;
-use Icicle\WebSocket\Protocol\Rfc6455Transporter as Transporter;
+use Icicle\WebSocket\{Close, Connection, Message};
+use Icicle\WebSocket\Exception\{ConnectionException, DataException, PolicyException, ProtocolException};
+use Icicle\WebSocket\Protocol\{Rfc6455Frame as Frame, Rfc6455Transporter as Transporter};
 
 class Rfc6455Connection implements Connection
 {
@@ -63,7 +57,7 @@ class Rfc6455Connection implements Connection
      */
     public function __construct(
         Transporter $transporter,
-        $subProtocol,
+        string $subProtocol,
         array $extensions,
         array $options = []
     ) {
@@ -91,7 +85,7 @@ class Rfc6455Connection implements Connection
     /**
      * {@inheritdoc}
      */
-    public function isOpen()
+    public function isOpen(): bool
     {
         return $this->transporter->isOpen() && !$this->closed;
     }
@@ -99,7 +93,7 @@ class Rfc6455Connection implements Connection
     /**
      * {@inheritdoc}
      */
-    public function getSubProtocol()
+    public function getSubProtocol(): string
     {
         return $this->subProtocol;
     }
@@ -107,7 +101,7 @@ class Rfc6455Connection implements Connection
     /**
      * {@inheritdoc}
      */
-    public function getExtensions()
+    public function getExtensions(): array
     {
         return $this->extensions;
     }
@@ -115,7 +109,7 @@ class Rfc6455Connection implements Connection
     /**
      * {@inheritdoc}
      */
-    public function read()
+    public function read(): Observable
     {
         return $this->observable;
     }
@@ -127,27 +121,27 @@ class Rfc6455Connection implements Connection
      *
      * @return \Icicle\Observable\Observable
      */
-    private function createObservable($interval, $maxSize, $maxFrames)
+    private function createObservable(float $interval, int $maxSize, int $maxFrames): Observable
     {
-        return new Emitter(function (callable $emit) use ($interval, $maxSize, $maxFrames) {
+        return new Emitter(function (callable $emit) use ($interval, $maxSize, $maxFrames): \Generator {
             /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame[] $frames */
             $frames = [];
             $size = 0;
 
             $ping = Loop\periodic($interval, Coroutine\wrap(function () use (&$pong, &$expected) {
                 try {
-                    yield $this->ping($expected = base64_encode(random_bytes(self::PING_DATA_LENGTH)));
+                    yield from $this->ping($expected = base64_encode(random_bytes(self::PING_DATA_LENGTH)));
 
                     if (null === $pong) {
                         $pong = Loop\timer($this->timeout, Coroutine\wrap(function () {
-                            yield $this->close(Close::VIOLATION);
+                            yield from $this->close(Close::VIOLATION);
                             $this->transporter->close();
                         }));
                         $pong->unreference();
                     } else {
                         $pong->again();
                     }
-                } catch (\Exception $exception) {
+                } catch (\Throwable $exception) {
                     $this->transporter->close();
                 }
             }));
@@ -156,21 +150,20 @@ class Rfc6455Connection implements Connection
             try {
                 while ($this->transporter->isOpen()) {
                     /** @var \Icicle\WebSocket\Protocol\Rfc6455Frame $frame */
-                    $frame = (yield $this->transporter->read($maxSize - $size));
+                    $frame = yield from $this->transporter->read($maxSize - $size);
 
                     $ping->again();
 
                     switch ($type = $frame->getType()) {
                         case Frame::CLOSE: // Close connection.
                             if (!$this->closed) { // Respond with close frame if one has not been sent.
-                                yield $this->close(Close::NORMAL);
+                                yield from $this->close(Close::NORMAL);
                             }
 
                             $data = $frame->getData();
 
                             if (2 > strlen($data)) {
-                                yield new Close(Close::NO_STATUS);
-                                return;
+                                return new Close(Close::NO_STATUS);
                             }
 
                             $bytes = unpack('ncode', substr($data, 0, 2));
@@ -181,11 +174,10 @@ class Rfc6455Connection implements Connection
                                 throw new DataException('Invalid UTF-8 data received.');
                             }
 
-                            yield new Close($bytes['code'], $data);
-                            return;
+                            return new Close($bytes['code'], $data);
 
                         case Frame::PING: // Respond with pong frame.
-                            yield $this->pong($frame->getData());
+                            yield from $this->pong($frame->getData());
                             continue;
 
                         case Frame::PONG: // Cancel timeout set by sending ping frame.
@@ -228,7 +220,7 @@ class Rfc6455Connection implements Connection
                                 throw new DataException('Invalid UTF-8 data received.');
                             }
 
-                            yield $emit(new Message($data, $type === Frame::BINARY));
+                            yield from $emit(new Message($data, $type === Frame::BINARY));
                             continue;
 
                         case Frame::TEXT:
@@ -249,7 +241,7 @@ class Rfc6455Connection implements Connection
                                 throw new DataException('Invalid UTF-8 data received.');
                             }
 
-                            yield $emit(new Message($data, $type === Frame::BINARY));
+                            yield from $emit(new Message($data, $type === Frame::BINARY));
                             continue;
 
                         default:
@@ -276,17 +268,17 @@ class Rfc6455Connection implements Connection
             }
 
             if ($this->isOpen()) {
-                yield $this->close($close->getCode());
+                yield from $this->close($close->getCode());
             }
 
-            yield $close;
+            return $close;
         });
     }
 
     /**
      * {@inheritdoc}
      */
-    public function send($message, $binary = false)
+    public function send($message, bool $binary = false): \Generator
     {
         if ($message instanceof Message) {
             $binary = $message->isBinary();
@@ -295,25 +287,25 @@ class Rfc6455Connection implements Connection
         $frame = new Frame($binary ? Frame::BINARY : Frame::TEXT, (string) $message);
 
         try {
-            yield $this->transporter->send($frame, $this->timeout);
+            return yield from $this->transporter->send($frame, $this->timeout);
         } catch (\Exception $exception) {
-            yield 0;
+            return 0;
         }
     }
 
     /**
      * {@inheritdoc}
      */
-    public function close($code = Close::NORMAL, $data = '')
+    public function close(int $code = Close::NORMAL, string $data = ''): \Generator
     {
         $this->closed = true;
 
-        $frame = new Frame(Frame::CLOSE, pack('n', (int) $code) . $data);
+        $frame = new Frame(Frame::CLOSE, pack('n', $code) . $data);
 
         try {
-            yield $this->transporter->send($frame, $this->timeout);
+            return yield from $this->transporter->send($frame, $this->timeout);
         } catch (\Exception $exception) {
-            yield 0;
+            return 0;
         }
     }
 
@@ -328,10 +320,10 @@ class Rfc6455Connection implements Connection
      *
      * @resolve int
      */
-    protected function ping($data = '')
+    protected function ping(string $data = ''): \Generator
     {
         $frame = new Frame(Frame::PING, $data);
-        yield $this->transporter->send($frame, $this->timeout);
+        return yield from $this->transporter->send($frame, $this->timeout);
     }
 
     /**
@@ -345,16 +337,16 @@ class Rfc6455Connection implements Connection
      *
      * @resolve int
      */
-    protected function pong($data = '')
+    protected function pong(string $data = ''): \Generator
     {
         $frame = new Frame(Frame::PONG, $data);
-        yield $this->transporter->send($frame, $this->timeout);
+        return yield from $this->transporter->send($frame, $this->timeout);
     }
 
     /**
      * @return string
      */
-    public function getLocalAddress()
+    public function getLocalAddress(): string
     {
         return $this->transporter->getLocalAddress();
     }
@@ -362,7 +354,7 @@ class Rfc6455Connection implements Connection
     /**
      * @return int
      */
-    public function getLocalPort()
+    public function getLocalPort(): int
     {
         return $this->transporter->getLocalPort();
     }
@@ -370,7 +362,7 @@ class Rfc6455Connection implements Connection
     /**
      * @return string
      */
-    public function getRemoteAddress()
+    public function getRemoteAddress(): string
     {
         return $this->transporter->getRemoteAddress();
     }
@@ -378,7 +370,7 @@ class Rfc6455Connection implements Connection
     /**
      * @return int
      */
-    public function getRemotePort()
+    public function getRemotePort(): int
     {
         return $this->transporter->getRemotePort();
     }
@@ -386,7 +378,7 @@ class Rfc6455Connection implements Connection
     /**
      * @return bool
      */
-    public function isCryptoEnabled()
+    public function isCryptoEnabled(): bool
     {
         return $this->transporter->isCryptoEnabled();
     }

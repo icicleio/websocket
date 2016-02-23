@@ -1,9 +1,7 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
-use Icicle\Http\Message\Uri;
+use Icicle\Http\Message\{Request, Response, Uri};
 use Icicle\Socket\Socket;
 use Icicle\WebSocket\Application;
 
@@ -16,7 +14,7 @@ interface ProtocolMatcher
      *
      * @return \Icicle\Http\Message\Response
      */
-    public function createResponse(Application $application, Request $request, Socket $socket);
+    public function createResponse(Application $application, Request $request, Socket $socket): Response;
 
     /**
      * @param \Icicle\Http\Message\Uri $uri
@@ -24,7 +22,7 @@ interface ProtocolMatcher
      *
      * @return \Icicle\Http\Message\Request
      */
-    public function createRequest(Uri $uri, array $protocols = []);
+    public function createRequest(Uri $uri, array $protocols = []): Request;
 
     /**
      * @param \Icicle\Http\Message\Request $request
@@ -32,10 +30,10 @@ interface ProtocolMatcher
      *
      * @return bool
      */
-    public function validateResponse(Request $request, Response $response);
+    public function validateResponse(Request $request, Response $response): bool;
 
     /**
      * @return string[]
      */
-    public function getSupportedVersions();
+    public function getSupportedVersions(): array;
 }

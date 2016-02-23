@@ -1,26 +1,28 @@
 <?php
 namespace Icicle\WebSocket;
 
+use Icicle\Observable\Observable;
+
 interface Connection
 {
     /**
      * @return bool
      */
-    public function isOpen();
+    public function isOpen(): bool;
 
     /**
      * Returns the name of any sub protocol to be used on the connection.
      *
      * @return string
      */
-    public function getSubProtocol();
+    public function getSubProtocol(): string;
 
     /**
      * Returns an array of extension names active on this connection.
      *
      * @return string[]
      */
-    public function getExtensions();
+    public function getExtensions(): array;
 
     /**
      * Returns an observable that emits \Icicle\WebSocket\Message instances when a message is received and resolves
@@ -32,7 +34,7 @@ interface Connection
      *
      * @resolve \Icicle\WebSocket\Close
      */
-    public function read();
+    public function read(): Observable;
 
     /**
      * @coroutine
@@ -46,7 +48,7 @@ interface Connection
      *
      * @resolve int
      */
-    public function send($message, $binary = false);
+    public function send($message, bool $binary = false): \Generator;
 
     /**
      * @coroutine
@@ -58,30 +60,30 @@ interface Connection
      *
      * @resolve int
      */
-    public function close($code = Close::NORMAL, $data = '');
+    public function close(int $code = Close::NORMAL, string $data = ''): \Generator;
 
     /**
      * @return string
      */
-    public function getLocalAddress();
+    public function getLocalAddress(): string;
 
     /**
      * @return int
      */
-    public function getLocalPort();
+    public function getLocalPort(): int;
 
     /**
      * @return string
      */
-    public function getRemoteAddress();
+    public function getRemoteAddress(): string;
 
     /**
      * @return int
      */
-    public function getRemotePort();
+    public function getRemotePort(): int;
 
     /**
      * @return bool
      */
-    public function isCryptoEnabled();
+    public function isCryptoEnabled(): bool;
 }

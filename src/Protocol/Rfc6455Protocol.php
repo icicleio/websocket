@@ -1,14 +1,10 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\BasicResponse;
-use Icicle\Http\Message\Response;
+use Icicle\Http\Message\{BasicResponse, Request, Response};
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
-use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
-use Icicle\WebSocket\SubProtocol;
+use Icicle\WebSocket\{Application, Connection, Protocol\Message\WebSocketResponse, SubProtocol};
 
 class Rfc6455Protocol implements Protocol
 {
@@ -32,7 +28,7 @@ class Rfc6455Protocol implements Protocol
     /**
      * {@inheritdoc}
      */
-    public function getVersionNumber()
+    public function getVersionNumber(): string
     {
         return self::VERSION;
     }
@@ -40,7 +36,7 @@ class Rfc6455Protocol implements Protocol
     /**
      * {@inheritdoc}
      */
-    public function isProtocol(Request $request)
+    public function isProtocol(Request $request): bool
     {
         $versions = array_map('trim', explode(',', $request->getHeader('Sec-WebSocket-Version')));
 
@@ -50,7 +46,7 @@ class Rfc6455Protocol implements Protocol
     /**
      * {@inheritdoc}
      */
-    public function createResponse(Application $application, Request $request, Socket $socket)
+    public function createResponse(Application $application, Request $request, Socket $socket): Response
     {
         if (!$request->hasHeader('Sec-WebSocket-Key')) {
             $sink = new MemorySink('No WebSocket key header provided.');
@@ -96,7 +92,7 @@ class Rfc6455Protocol implements Protocol
     /**
      * {@inheritdoc}
      */
-    public function createConnection(Response $response, Socket $socket, $mask)
+    public function createConnection(Response $response, Socket $socket, bool $mask): Connection
     {
         return new Rfc6455Connection(
             new Rfc6455Transporter($socket, $mask),
@@ -109,7 +105,7 @@ class Rfc6455Protocol implements Protocol
     /**
      * {@inheritdoc}
      */
-    public function validateResponse(Request $request, Response $response)
+    public function validateResponse(Request $request, Response $response): bool
     {
         if (Response::SWITCHING_PROTOCOLS !== $response->getStatusCode()) {
             return false;
@@ -137,7 +133,7 @@ class Rfc6455Protocol implements Protocol
      *
      * @return string
      */
-    private function responseKey($key)
+    private function responseKey(string $key): string
     {
         return base64_encode(sha1($key . self::GUID, true));
     }
@@ -147,7 +143,7 @@ class Rfc6455Protocol implements Protocol
      *
      * @return string
      */
-    public function generateKey($length = self::DEFAULT_KEY_LENGTH)
+    public function generateKey(int $length = self::DEFAULT_KEY_LENGTH): string
     {
         return base64_encode(random_bytes($length));
     }

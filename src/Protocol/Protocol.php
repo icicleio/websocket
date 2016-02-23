@@ -1,17 +1,16 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
+use Icicle\Http\Message\{Request, Response};
 use Icicle\Socket\Socket;
-use Icicle\WebSocket\Application;
+use Icicle\WebSocket\{Application, Connection};
 
 interface Protocol
 {
     /**
      * @return string
      */
-    public function getVersionNumber();
+    public function getVersionNumber(): string;
 
     /**
      * Determines if the request supports this protocol.
@@ -20,7 +19,7 @@ interface Protocol
      *
      * @return bool
      */
-    public function isProtocol(Request $request);
+    public function isProtocol(Request $request): bool;
 
     /**
      * @param Application $application
@@ -29,7 +28,7 @@ interface Protocol
      *
      * @return \Icicle\Http\Message\Response
      */
-    public function createResponse(Application $application, Request $request, Socket $socket);
+    public function createResponse(Application $application, Request $request, Socket $socket): Response;
 
     /**
      * @param \Icicle\Http\Message\Request $request
@@ -37,7 +36,7 @@ interface Protocol
      *
      * @return bool
      */
-    public function validateResponse(Request $request, Response $response);
+    public function validateResponse(Request $request, Response $response): bool;
 
     /**
      * @param \Icicle\Http\Message\Response $response
@@ -46,5 +45,5 @@ interface Protocol
      *
      * @return \Icicle\WebSocket\Connection
      */
-    public function createConnection(Response $response, Socket $socket, $mask);
+    public function createConnection(Response $response, Socket $socket, bool $mask): Connection;
 }

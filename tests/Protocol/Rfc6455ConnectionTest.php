@@ -36,7 +36,7 @@ class Rfc6455ConnectionTest extends TestCase
             ->will($this->returnCallback(function () use (&$data) {
                 $temp = $data;
                 $data = '';
-                yield $temp;
+                return yield $temp;
             }));
 
         $socket->method('unshift')
@@ -46,7 +46,7 @@ class Rfc6455ConnectionTest extends TestCase
 
         $socket->method('write')
             ->will($this->returnCallback(function ($string) {
-                yield strlen($string);
+                return yield strlen($string);
             }));
 
         return $socket;

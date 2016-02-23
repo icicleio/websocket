@@ -1,11 +1,7 @@
 <?php
 namespace Icicle\WebSocket\Protocol;
 
-use Icicle\Http\Message\BasicRequest;
-use Icicle\Http\Message\BasicResponse;
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
-use Icicle\Http\Message\Uri;
+use Icicle\Http\Message\{BasicRequest, BasicResponse, Request, Response, Uri};
 use Icicle\Socket\Socket;
 use Icicle\Stream\MemorySink;
 use Icicle\WebSocket\Application;
@@ -29,7 +25,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     /**
      * {@inheritdoc}
      */
-    public function createResponse(Application $application, Request $request, Socket $socket)
+    public function createResponse(Application $application, Request $request, Socket $socket): Response
     {
         if ($request->getMethod() !== 'GET') {
             $sink = new MemorySink('Only GET requests allowed for WebSocket connections.');
@@ -70,7 +66,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     /**
      * {@inheritdoc}
      */
-    public function createRequest(Uri $uri, array $protocols = [], array $extensions = [])
+    public function createRequest(Uri $uri, array $protocols = [], array $extensions = []): Request
     {
         $headers = [
             'Connection' => 'upgrade',
@@ -93,7 +89,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     /**
      * {@inheritdoc}
      */
-    public function validateResponse(Request $request, Response $response)
+    public function validateResponse(Request $request, Response $response): bool
     {
         return $this->protocol->validateResponse($request, $response);
     }
@@ -101,7 +97,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
     /**
      * @return string[]
      */
-    public function getSupportedVersions()
+    public function getSupportedVersions(): array
     {
         return [$this->protocol->getVersionNumber()];
     }

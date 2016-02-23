@@ -15,16 +15,16 @@
         }
     ],
     "require": {
-        "icicleio/icicle": "^0.9.1",
-        "icicleio/socket": "^0.5.2",
-        "icicleio/http": "v0.3.x-dev as 0.3.0",
-        "icicleio/log": "^0.1",
-        "paragonie/random_compat": "^1"
+        "icicleio/icicle": "^2.0",
+        "icicleio/socket": "^2.0",
+        "icicleio/http": "^2.0",
+        "icicleio/log": "^2.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^4.8",
+        "phpunit/phpunit": "^5",
         "symfony/yaml": "^2.7"
     },
+    "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
             "Icicle\\WebSocket\\": "src"

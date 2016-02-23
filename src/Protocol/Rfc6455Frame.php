@@ -46,11 +46,11 @@ class Rfc6455Frame
      *
      * @throws \Icicle\WebSocket\Exception\FrameException
      */
-    public function __construct($opcode, $data = '', $rsv = 0, $final = true)
+    public function __construct(int $opcode, string $data = '', int $rsv = 0, bool $final = true)
     {
-        $this->data = (string) $data;
-        $this->final = (bool) $final;
-        $this->rsv = (int) $rsv;
+        $this->data = $data;
+        $this->final = $final;
+        $this->rsv = $rsv;
 
         switch ($opcode) {
             case self::BINARY:
@@ -75,7 +75,7 @@ class Rfc6455Frame
     /**
      * @return  string
      */
-    public function getData()
+    public function getData(): string
     {
         return $this->data;
     }
@@ -83,7 +83,7 @@ class Rfc6455Frame
     /**
      * @return int
      */
-    public function getSize()
+    public function getSize(): int
     {
         return strlen($this->data);
     }
@@ -91,7 +91,7 @@ class Rfc6455Frame
     /**
      * @return  int
      */
-    public function getType()
+    public function getType(): int
     {
         return $this->opcode;
     }
@@ -99,7 +99,7 @@ class Rfc6455Frame
     /**
      * @return  bool
      */
-    public function isFinal()
+    public function isFinal(): bool
     {
         return $this->final;
     }
@@ -107,7 +107,7 @@ class Rfc6455Frame
     /**
      * @return int
      */
-    public function getRsv()
+    public function getRsv(): int
     {
         return $this->rsv;
     }
@@ -115,7 +115,7 @@ class Rfc6455Frame
     /**
      * @return bool
      */
-    public function getRsv1()
+    public function getRsv1(): bool
     {
         return (bool) $this->rsv & self::RSV1;
     }
@@ -123,7 +123,7 @@ class Rfc6455Frame
     /**
      * @return bool
      */
-    public function getRsv2()
+    public function getRsv2(): bool
     {
         return (bool) $this->rsv & self::RSV2;
     }
@@ -131,7 +131,7 @@ class Rfc6455Frame
     /**
      * @return bool
      */
-    public function getRsv3()
+    public function getRsv3(): bool
     {
         return (bool) $this->rsv & self::RSV3;
     }

@@ -1,8 +1,7 @@
 <?php
 namespace Icicle\WebSocket;
 
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
+use Icicle\Http\Message\{Request, Response};
 use Icicle\Socket\Socket;
 
 interface Application

@@ -1,14 +1,11 @@
 <?php
 namespace Icicle\WebSocket\Server;
 
-use Icicle\Http\Server\Server as HttpServer;
-use Icicle\Http\Server\RequestHandler;
+use Icicle\Http\Server\{RequestHandler, Server as HttpServer};
 use Icicle\Log\Log;
 use Icicle\Socket\Server\ServerFactory;
-use Icicle\WebSocket\Driver\Driver;
-use Icicle\WebSocket\Driver\WebSocketDriver;
-use Icicle\WebSocket\Protocol\DefaultProtocolMatcher;
-use Icicle\WebSocket\Protocol\ProtocolMatcher;
+use Icicle\WebSocket\Driver\{Driver, WebSocketDriver};
+use Icicle\WebSocket\Protocol\{DefaultProtocolMatcher, ProtocolMatcher};
 
 class Server extends HttpServer
 {

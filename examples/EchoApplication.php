@@ -1,13 +1,10 @@
 <?php
 namespace Icicle\Examples\WebSocket;
 
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
-use Icicle\Log as LogNS;
-use Icicle\Log\Log;
+use Icicle\Http\Message\{Request, Response};
+use Icicle\Log\{Log, function log};
 use Icicle\Socket\Socket;
-use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Connection;
+use Icicle\WebSocket\{Application, Connection};
 
 class EchoApplication implements Application
 {
@@ -21,7 +18,7 @@ class EchoApplication implements Application
      */
     public function __construct(Log $log = null)
     {
-        $this->log = $log ?: LogNS\log();
+        $this->log = $log ?: log();
     }
 
     /**
@@ -40,7 +37,7 @@ class EchoApplication implements Application
      */
     public function onConnection(Connection $connection, Response $response, Request $request)
     {
-        yield $this->log->log(
+        yield from $this->log->log(
             Log::INFO,
             'Accepted WebSocket connection from %s:%d on %s:%d',
             $connection->getRemoteAddress(),
@@ -52,28 +49,28 @@ class EchoApplication implements Application
         // The Response and Request objects used to initiate the connection are provided for informational purposes.
         // This method will primarily interact with the Connection object.
 
-        yield $connection->send('Connected to echo WebSocket server powered by Icicle.');
+        yield from $connection->send('Connected to echo WebSocket server powered by Icicle.');
 
         // Messages are read through an Observable that represents an asynchronous set. There are a variety of ways
         // to use this asynchronous set, including an asynchronous iterator as shown in the example below.
 
         $iterator = $connection->read()->getIterator();
 
-        while (yield $iterator->isValid()) {
+        while (yield from $iterator->isValid()) {
             /** @var \Icicle\WebSocket\Message $message */
             $message = $iterator->getCurrent();
 
             if ($message->getData() === 'close') {
-                yield $connection->close();
+                yield from $connection->close();
             } else {
-                yield $connection->send($message);
+                yield from $connection->send($message);
             }
         }
 
         /** @var \Icicle\WebSocket\Close $close */
         $close = $iterator->getReturn(); // Only needs to be called if the close reason is needed.
 
-        yield $this->log->log(
+        yield from $this->log->log(
             Log::INFO,
             'WebSocket connection from %s:%d closed; Code %d; Data: %s',
             $connection->getRemoteAddress(),

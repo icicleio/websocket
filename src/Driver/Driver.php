@@ -2,10 +2,8 @@
 namespace Icicle\WebSocket\Driver;
 
 use Icicle\Http\Driver\Driver as HttpDriver;
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
-use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Connection;
+use Icicle\Http\Message\{Request, Response};
+use Icicle\WebSocket\{Application, Connection};
 
 interface Driver extends HttpDriver
 {
@@ -26,5 +24,5 @@ interface Driver extends HttpDriver
         Connection $connection,
         Response $response,
         Request $request
-    );
+    ): \Generator;
 }

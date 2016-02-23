@@ -2,12 +2,9 @@
 namespace Icicle\WebSocket\Driver;
 
 use Icicle\Http\Driver\Http1Driver;
-use Icicle\Http\Message\Request;
-use Icicle\Http\Message\Response;
+use Icicle\Http\Message\{Request, Response};
 use Icicle\Socket\Socket;
-use Icicle\WebSocket\Application;
-use Icicle\WebSocket\Connection;
-use Icicle\WebSocket\Protocol\Message\WebSocketResponse;
+use Icicle\WebSocket\{Application, Connection, Protocol\Message\WebSocketResponse};
 
 class WebSocketDriver extends Http1Driver implements Driver
 {
@@ -18,19 +15,19 @@ class WebSocketDriver extends Http1Driver implements Driver
         Socket $socket,
         Response $response,
         Request $request = null,
-        $timeout = 0
-    ) {
-        $written = (yield parent::writeResponse($socket, $response, $request, $timeout));
+        float $timeout = 0
+    ): \Generator {
+        $written = yield from parent::writeResponse($socket, $response, $request, $timeout);
 
         if ($response instanceof WebSocketResponse) {
             $application = $response->getApplication();
             $connection = $response->getConnection();
             $response = $response->getMessage();
 
-            yield $this->onConnection($application, $connection, $response, $request);
+            yield from $this->onConnection($application, $connection, $response, $request);
         }
 
-        yield $written;
+        return $written;
     }
 
     /**
@@ -41,7 +38,7 @@ class WebSocketDriver extends Http1Driver implements Driver
         Connection $connection,
         Response $response,
         Request $request
-    ) {
-        yield $application->onConnection($connection, $response, $request);
+    ): \Generator {
+        return yield $application->onConnection($connection, $response, $request);
     }
 }

@@ -17,16 +17,16 @@ class Message
      * @param string $data
      * @param bool $binary
      */
-    public function __construct($data, $binary = false)
+    public function __construct(string $data, bool $binary = false)
     {
-        $this->data = (string) $data;
-        $this->binary = (bool) $binary;
+        $this->data = $data;
+        $this->binary = $binary;
     }
 
     /**
      * @return string
      */
-    public function getData()
+    public function getData(): string
     {
         return $this->data;
     }
@@ -34,7 +34,7 @@ class Message
     /**
      * @return bool
      */
-    public function isBinary()
+    public function isBinary(): bool
     {
         return $this->binary;
     }
@@ -42,7 +42,7 @@ class Message
     /**
      * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->data;
     }
