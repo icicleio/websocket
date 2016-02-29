@@ -41,7 +41,7 @@ class DefaultProtocolMatcher implements ProtocolMatcher
             ], $sink);
         }
 
-        if (strtolower($request->getHeader('Connection')) !== 'upgrade'
+        if (!in_array('upgrade', array_map('trim', explode(',', strtolower($request->getHeader('Connection')))), true)
             || strtolower($request->getHeader('Upgrade')) !== 'websocket'
         ) {
             $sink = new MemorySink('Must upgrade to WebSocket connection for requested resource.');
