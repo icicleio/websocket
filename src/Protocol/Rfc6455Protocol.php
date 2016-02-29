@@ -40,7 +40,7 @@ class Rfc6455Protocol implements Protocol
     {
         $versions = array_map('trim', explode(',', $request->getHeader('Sec-WebSocket-Version')));
 
-        return in_array(self::VERSION, $versions);
+        return in_array(self::VERSION, $versions, true);
     }
 
     /**
