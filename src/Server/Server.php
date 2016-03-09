@@ -12,16 +12,16 @@ class Server extends HttpServer
     /**
      * @param \Icicle\Http\Server\RequestHandler $handler
      * @param \Icicle\Log\Log|null $log
+     * @param \Icicle\WebSocket\Protocol\ProtocolMatcher|null $matcher
      * @param \Icicle\WebSocket\Driver\Driver|null $driver
      * @param \Icicle\Socket\Server\ServerFactory|null $factory
-     * @param \Icicle\WebSocket\Protocol\ProtocolMatcher|null $matcher
      */
     public function __construct(
         RequestHandler $handler,
         Log $log = null,
+        ProtocolMatcher $matcher = null,
         Driver $driver = null,
-        ServerFactory $factory = null,
-        ProtocolMatcher $matcher = null
+        ServerFactory $factory = null
     ) {
         $handler = new Internal\WebSocketRequestHandler($matcher ?: new DefaultProtocolMatcher(), $handler);
         $driver = $driver ?: new WebSocketDriver();
