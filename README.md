@@ -45,3 +45,97 @@ You can also manually edit `composer.json` to add this library as a project requ
     }
 }
 ```
+
+#### Example
+
+The example below creates a simple HTTP server that accepts WebSocket connections on the path `/echo`, otherwise responding with a 404 status code on other paths.
+
+```php
+#!/usr/bin/env php
+<?php
+
+require '/vendor/autoload.php';
+
+use Icicle\Http\Message\{BasicResponse, Request, Response};
+use Icicle\Http\Server\RequestHandler;
+use Icicle\Loop;
+use Icicle\Socket\Socket;
+use Icicle\WebSocket\{Application, Connection, Server\Server};
+
+$echo = new class implements Application {
+    /**
+     * {@inheritdoc}
+     */
+    public function onHandshake(Response $response, Request $request, Socket $socket): Response
+    {
+        // This method provides an opportunity to inspect the Request and Response before a connection is accepted.
+        // Cookies may be set and returned on a new Response object, e.g.: return $response->withCookie(...);
+
+        return $response; // No modification needed to the response, so the passed Response object is simply returned.
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function onConnection(Connection $connection, Response $response, Request $request): Generator
+    {
+        // The Response and Request objects used to initiate the connection are provided for informational purposes.
+        // This method will primarily interact with the Connection object.
+
+        yield from $connection->send('Connected to echo WebSocket server powered by Icicle.');
+
+        // Messages are read through an Observable that represents an asynchronous set. There are a variety of ways
+        // to use this asynchronous set, including an asynchronous iterator as shown in the example below.
+
+        $observable = $connection->read(); // Connection::read() returns an observable of received Message objects.
+        $iterator = $observable->getIterator();
+
+        while (yield from $iterator->isValid()) {
+            /** @var \Icicle\WebSocket\Message $message */
+            $message = $iterator->getCurrent();
+
+            if ($message->getData() === 'close') {
+                yield from $connection->close(); // Close the connection if the message contains only 'close'
+            } else {
+                yield from $connection->send($message); // Echo the message back to the client.
+            }
+        }
+
+        /** @var \Icicle\WebSocket\Close $close */
+        $close = $iterator->getReturn(); // Only needs to be called if the close reason is needed.
+    }
+};
+
+$server = new Server(new class ($echo) implements RequestHandler {
+    /** @var \Icicle\WebSocket\Application */
+    private $application;
+
+    public function __construct(Application $application)
+    {
+        $this->application = $application;
+    }
+
+    public function onRequest(Request $request, Socket $socket): Generator
+    {
+        if ($request->getUri()->getPath() === '/echo') {
+            return $this->application; // Return a WebSocket Application to create a WebSocket connection.
+        }
+
+        $response = new BasicResponse(Response::NOT_FOUND, [
+            'Content-Type' => 'text/plain',
+        ]);
+
+        yield from $response->getBody()->end('Resource not found.');
+
+        return $response; // Return a regular HTTP response for other request paths.
+    }
+
+    public function onError(int $code, Socket $socket): Response
+    {
+        return new BasicResponse($code);
+    }
+});
+
+$server->listen(8080);
+
+Loop\run();```
