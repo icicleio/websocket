@@ -138,4 +138,5 @@ $server = new Server(new class ($echo) implements RequestHandler {
 
 $server->listen(8080);
 
-Loop\run();```
+Loop\run();
+```
